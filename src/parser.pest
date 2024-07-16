@@ -1,0 +1,17 @@
+WHITESPACE = _{ " " | "\t" | "\n" }
+line_comment = _{ "//" ~ (!"\n" ~ ANY)* ~ "\n" }
+block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+COMMENT = _{ line_comment | block_comment }
+file = { SOI ~ file_inner ~ EOI }
+file_inner = { block_inner }
+block = { "{" ~ block_inner ~ "}" }
+block_inner = { stmt* }
+stmt = { expr_stmt | sent_stmt }
+expr_stmt = { expr ~ ";" }
+sent_stmt = { sent ~ ";" }
+expr = { ASCII_DIGIT }
+sent = { call_sent }
+BOOL = { "true" | "false" }
+INT = _{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+STRING = @{ "\"" ~ ( "\\n" | "\\\"" | "\\\\" | (!"\\" ~ ANY) ){0, 255} ~ "\""}
+NULL = { "null" }
