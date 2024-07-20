@@ -2,16 +2,87 @@ WHITESPACE = _{ " " | "\t" | "\n" }
 line_comment = _{ "//" ~ (!"\n" ~ ANY)* ~ "\n" }
 block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 COMMENT = _{ line_comment | block_comment }
-file = { SOI ~ file_inner ~ EOI }
-file_inner = { block_inner }
-block = { "{" ~ block_inner ~ "}" }
+file = { SOI ~ block_inner ~ EOI }
+block = { normal_block | small_block }
+small_block = { stmt? }
+normal_block = { "{" ~ block_inner ~ "}" }
 block_inner = { stmt* }
-stmt = { expr_stmt | sent_stmt }
+stmt = { simple_stmt | flow_stmt | compound_stmt }
+simple_stmt = { expr_stmt | decl_stmt }
 expr_stmt = { expr ~ ";" }
-sent_stmt = { sent ~ ";" }
-expr = { ASCII_DIGIT }
-sent = { call_sent }
+
+expr = { "this" | ( base_expr ~ expr_tail? ) }
+expr_tail = { "?" ~ expr ~ ":" ~ expr }
+base_expr = { ( test ~ ( "=" ~ test )? ) | new_expr }
+new_expr = { "new" ~ ( class_init | array_init ) }
+class_init = { TYPE ~ "()"? }
+array_init = { TYPE ~ ( "[" ~ INT ~ "]" )+ ~ "[]"* }
+
+
+test = { or_test }
+or_test = { and_test ~ ( "||" ~ and_test )* }
+and_test = { not_test ~ ( "&&" ~ not_test )* }
+not_test = { ( "!" ~ not_test ) | comparison }
+comparison = { arith_expr ~ ( comp_op ~ arith_expr )? }
+comp_op = { "<" | ">" | "<=" | ">=" | "!=" | "==" }
+arith_expr = { term ~ ( add_sub_op ~ term )* }
+add_sub_op = { "+" | "-" }
+term = { factor ~ ( mul_div_mod_op ~ factor )* }
+mul_div_mod_op = { "*" | "/" | "%" }
+factor = { base ~ ( logic_op ~ base )* }
+logic_op = { "&" | "|" | "^" }
+base = { operand ~ ( shift_op ~ operand )* }
+shift_op = { "<<" | ">>" }
+operand = { unit_op ~ operand | increment_op? ~ primary ~ increment_op? }
+unit_op = { "!" | "~" | "-" }
+increment_op = { "++" | "--" }
+
+primary = { atom ~ trailer* }
+atom = {
+    CONST
+    | ident
+    | "(" ~ expr ~ ")"
+}
+
+trailer = {
+    array_access
+    | member_access
+    | func_call
+}
+
+array_access = { "[" ~ expr ~ "]" }
+member_access = { "." ~ ident }
+func_call = { "(" ~ test_list? ~ ")" }
+test_list = { test ~ ( "," ~ test )* }
+
+decl_stmt = { decl ~ ";" }
+decl = { var_decl | arr_decl }
+var_decl = { TYPE ~ assign_list }
+assign_list = { assign ~ ( "," ~ assign )* }
+assign = { ident ~ ( "=" ~ expr )? }
+arr_decl = { TYPE ~ ("[]")+ ~ ident ~ ( "=" ~ expr)? }
+flow_stmt = { break_stmt | continue_stmt | return_stmt }
+break_stmt = { "break" ~ ";" }
+continue_stmt = { "continue" ~ ";" }
+return_stmt = { "return" ~ expr? ~ ";"}
+compound_stmt = { if_stmt | while_stmt | for_stmt | func_def | class_def }
+if_stmt = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ block)? }
+while_stmt = { "while" ~ "(" ~ expr ~  ")" ~ block }
+for_stmt = { "for" ~ "(" ~ simple_stmt? ~ ";" ~ expr? ~ ";" ~ simple_stmt? ~ ")" ~ block}
+func_def = { TYPE ~ ident ~ "(" ~ arg_list ~ ")" ~ block }
+arg_list = { ( TYPE ~ ident )* }
+class_def = { "class" ~ "{" ~ class_def_inner ~ "}" ~ ";" }
+class_def_inner = { class_def_stmt* }
+class_def_stmt = { member_decl | constr_def | func_def  }
+constr_def = { ident ~ "(" ~ ")" ~ normal_block }
+member_decl = { TYPE ~ ident ~ ( "," ~ ident )* ~ ";" }
+TYPE = { ( builtin_type | user_type ) ~ "*"? }
+builtin_type = { "void" | "bool" | "int" | "string" }
+user_type = { ident }
+ident = @{ !keyword  ~ ( ASCII_ALPHA ~ ( ASCII_ALPHANUMERIC | "_" ){0, 63} ) }
+keyword = { builtin_type | "new" | "class" | NULL | BOOL | "this" | "if" | "else" | "for" | "while" | "break" | "continue" | "return" }
 BOOL = { "true" | "false" }
 INT = _{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
 STRING = @{ "\"" ~ ( "\\n" | "\\\"" | "\\\\" | (!"\\" ~ ANY) ){0, 255} ~ "\""}
 NULL = { "null" }
+CONST = { BOOL | INT | STRING | NULL }
