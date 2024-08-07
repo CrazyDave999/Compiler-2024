@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use pest::iterators::Pair;
 use pest_derive::Parser;
+use std::cmp::PartialEq;
 #[derive(Parser)]
 #[grammar = "parser.pest"]
 pub struct MxParser;
@@ -14,7 +15,7 @@ pub enum ASTNode<'a> {
     FuncDef(Type<'a>, &'a str, Vec<(Type<'a>, &'a str)>, Box<ASTNode<'a>>), // name, parameters, block
     ConstrDef(&'a str, Box<ASTNode<'a>>), // name, block
     ClassDef(&'a str, Vec<ASTNode<'a>>), // name, class body
-    Block(Vec<ASTNode<'a>>), // stmt
+    Block(Vec<ASTNode<'a>>), // stmts | blocks
 
     ThisExpr,
 
@@ -49,10 +50,18 @@ pub enum ASTNode<'a> {
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct Type<'a> {
     pub name: &'a str,
     pub dim: i32,
 }
+
+impl<'a> PartialEq for Type<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.dim == other.dim
+    }
+}
+
 pub fn visit_file(pair: Pair<Rule>) -> ASTNode {
     let mut ast = vec![];
     for inner_pair in pair.into_inner() {
@@ -122,16 +131,33 @@ fn visit_class_def(pair: Pair<'_, Rule>) -> ASTNode {
     ASTNode::ClassDef(class_name, class_body)
 }
 fn visit_block(pair: Pair<'_, Rule>) -> ASTNode {
-    let mut stmts = vec![];
     let block_inner = pair.into_inner().next().unwrap();
-    let mut stmt_pairs = block_inner.into_inner();
-    while let Some(stmt_pair) = stmt_pairs.next() {
-        stmts.push(visit_stmt(stmt_pair));
+    match block_inner.as_rule() {
+        Rule::normal_block => visit_normal_block(block_inner),
+        Rule::small_block => {
+            let mut stmts = vec![];
+            if let Some(stmt_pair) = block_inner.into_inner().next() {
+                stmts.push(visit_stmt(stmt_pair));
+            }
+            ASTNode::Block(stmts)
+        }
+        _ => unreachable!()
+    }
+}
+fn visit_normal_block(pair: Pair<Rule>) -> ASTNode {
+    let mut stmts = vec![];
+    let mut inner_pairs = pair.into_inner();
+    while let Some(pr) = inner_pairs.next() {
+        match pr.as_rule() {
+            Rule::stmt => stmts.push(visit_stmt(pr)),
+            Rule::normal_block => stmts.push(visit_normal_block(pr)),
+            _ => { unreachable!() }
+        }
     }
     ASTNode::Block(stmts)
 }
 
-fn visit_stmt(pair: Pair<'_, Rule>) -> ASTNode {
+fn visit_stmt(pair: Pair<Rule>) -> ASTNode {
     let mut inner_pairs = pair.into_inner();
 
     let stmt_pair = inner_pairs.next().unwrap();
@@ -215,8 +241,10 @@ fn visit_new_expr(pair: Pair<Rule>) -> ASTNode {
             ASTNode::ClassInit(init_inner_pairs.next().unwrap().as_str())
         }
         Rule::array_init => {
-            let init_inner_pairs = init_pair.into_inner();
-            let my_type = inner_pairs.next().unwrap().as_str();
+            let mut init_inner_pairs = init_pair.into_inner();
+
+
+            let my_type = init_inner_pairs.next().unwrap().as_str();
 
             let mut exprs = vec![];
             let mut array_const = None;
@@ -292,15 +320,15 @@ fn visit_equal_test(pair: Pair<Rule>) -> ASTNode {
 }
 fn visit_comp_test(pair: Pair<Rule>) -> ASTNode {
     let mut inner_pairs = pair.into_inner();
-    let mut lhs = visit_shift_test(inner_pairs.next().unwrap());
+    let mut lhs = visit_shift_expr(inner_pairs.next().unwrap());
     while let Some(op_pair) = inner_pairs.next() {
         let op = op_pair.as_str();
-        let rhs = visit_shift_test(inner_pairs.next().unwrap());
+        let rhs = visit_shift_expr(inner_pairs.next().unwrap());
         lhs = ASTNode::BinaryExpr(op, Box::new(lhs), Box::new(rhs));
     }
     lhs
 }
-fn visit_shift_test(pair: Pair<Rule>) -> ASTNode {
+fn visit_shift_expr(pair: Pair<Rule>) -> ASTNode {
     let mut inner_pairs = pair.into_inner();
     let mut lhs = visit_add_sub_expr(inner_pairs.next().unwrap());
     while let Some(op_pair) = inner_pairs.next() {

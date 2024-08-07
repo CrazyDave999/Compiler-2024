@@ -6,18 +6,19 @@ file = { SOI ~ ( ( var_decl ~ ";" ) | func_def | class_def )* ~ EOI }
 
 block = { normal_block | small_block }
 small_block = { stmt? }
-normal_block = { "{" ~ stmt* ~ "}" }
+normal_block = { "{" ~ ( normal_block | stmt | ";" )* ~ "}" }
 stmt = { simple_stmt | flow_stmt | compound_stmt }
-simple_stmt = { ( expr | var_decl ) ~ ";" }
+simple_stmt = { ( var_decl | expr ) ~ ";" }
 
 expr = { base_expr ~ expr_tail? }
 expr_tail = { "?" ~ expr ~ ":" ~ expr }
 base_expr = { ( test ~ ( "=" ~ expr )? ) | new_expr | arr_const }
+
 arr_const = { "{" ~ CONST? ~ ( "," ~ CONST )* ~ "}" }
 new_expr = { "new" ~ ( array_init | class_init ) }
 
-class_init = { ident ~ "()"? }
-array_init = { ident ~ ( "[" ~ expr ~ "]" )+ ~ blank_bracket* ~ arr_const? }
+class_init = { ( builtin_type | user_type ) ~ ( "()" )? }
+array_init = { ( builtin_type | user_type ) ~ ( ( "[" ~ expr ~ "]" )+ ~ blank_bracket* ) | ( blank_bracket* ~ arr_const ) }
 blank_bracket = { "[]" }
 
 test = { or_test }
@@ -30,8 +31,8 @@ bit_and_test = { equal_test ~ ( "&" ~ equal_test )* }
 equal_test = { comp_test ~ ( equal_op ~ comp_test )*}
 equal_op = { "==" | "!=" }
 
-comp_test = { shift_expr ~ ( comp_op ~ shift_expr )? }
-comp_op = { "<" | ">" | "<=" | ">=" }
+comp_test = { shift_expr ~ ( comp_op ~ shift_expr )* }
+comp_op = { "<=" | ">=" | "<" | ">" }
 
 shift_expr = { add_sub_expr ~ ( shift_op ~ add_sub_expr )* }
 shift_op = { "<<" | ">>" }
@@ -71,8 +72,8 @@ var_decl = { TYPE ~ assign ~ ( "," ~ assign )* }
 assign = { ident ~ ( "=" ~ expr )? }
 
 flow_stmt = { break_stmt | continue_stmt | return_stmt }
-break_stmt = _{ "break" ~ ";" }
-continue_stmt = _{ "continue" ~ ";" }
+break_stmt = @{ "break" ~ ";" }
+continue_stmt = @{ "continue" ~ ";" }
 return_stmt = { "return" ~ expr? ~ ";"}
 compound_stmt = { if_stmt | while_stmt | for_stmt }
 if_stmt = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ block)? }
@@ -92,7 +93,7 @@ class_def = { "class" ~ ident ~ "{" ~ ( ( var_decl ~ ";" ) | constr_def | func_d
 TYPE = { ( builtin_type | user_type ) ~ blank_bracket* }
 builtin_type = @{ "void" | "bool" | "int" | "string" }
 user_type = { ident }
-ident = @{ !keyword  ~ ( ASCII_ALPHA ~ ( ASCII_ALPHANUMERIC | "_" ){0, 63} ) }
+ident = @{ ( keyword ~ ( ASCII_ALPHANUMERIC | "_" )+ ) | ( !keyword ~ ( ASCII_ALPHA ~ ( ASCII_ALPHANUMERIC | "_" ){0, 63} ) ) }
 keyword = @{ builtin_type | "new" | "class" | NULL | BOOL | this | "if" | "else" | "for" | "while" | "break" | "continue" | "return" }
 BOOL = @{ "true" | "false" }
 INT = @{ ( ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* ) | "0" }

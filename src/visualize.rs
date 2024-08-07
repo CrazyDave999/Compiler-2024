@@ -88,12 +88,14 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("ArrayInit\n");
             show_indent(indent);
-            print!("new {} ", name);
+            print!("new {} \n", name);
             show_indent(indent);
             print!("[\n");
             for size in sizes {
                 if let Some(size) = size {
                     print_ast(size, indent + 2);
+                    show_indent(indent + 2);
+                    print!(",\n");
                 }
                 else{
                     show_indent(indent + 2);
@@ -102,6 +104,9 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             }
             show_indent(indent);
             print!("]\n");
+            if let Some(arr_const) = arr_const {
+                print_ast(arr_const, indent + 2);
+            }
         }
         ASTNode::ClassInit(name) => {
             show_indent(indent);
@@ -226,22 +231,17 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 show_indent(indent + 2);
                 print!("NULL\n");
             }
-            show_indent(indent);
-            print!("Block:\n");
             print_ast(block, indent + 2);
         }
         ASTNode::WhileStmt(cond, block) => {
             show_indent(indent);
             print!("WhileStmt\n");
-            show_indent(indent);
             if let Some(cond) = cond {
                 print_ast(cond, indent + 2);
             }else {
                 show_indent(indent + 2);
                 print!("NULL\n");
             }
-            show_indent(indent);
-            print!("Block:\n");
             print_ast(block, indent + 2);
         }
         ASTNode::ReturnStmt(ret) => {
