@@ -124,10 +124,40 @@ impl<'a> Scope<'a> {
         self.top().class.insert(name, members.clone());
     }
 
-    pub fn find_var(&self, name: &'a str) -> Option<&Type<'a>> {
-        for layer in self.layers.iter().rev() {
+    pub fn find_ident(&self, name: &'a str) -> Option<ExprInfo<'a>> {
+        for layer in self.layers.iter().rev(){
             if let Some(ty) = layer.var.get(name) {
-                return Some(ty);
+                return Some(ExprInfo {
+                    ty: ty.clone(),
+                    is_left: true,
+                    is_const: false,
+                    mem: if let Class(class_name) = layer.ty {
+                        Some((Some(class_name), Some(name)))
+                    } else {
+                        None
+                    },
+                    gb_func: None,
+                });
+            }
+            if let Some(_) = layer.func.get(name) {
+                return Some(ExprInfo {
+                    ty: Type {
+                        name: "#FUNC#",
+                        dim: 0,
+                    },
+                    is_left: false,
+                    is_const: false,
+                    mem: if let Class(class_name) = layer.ty {
+                        Some((Some(class_name), Some(name)))
+                    } else {
+                        None
+                    },
+                    gb_func: if let Global = layer.ty {
+                        Some(name)
+                    } else {
+                        None
+                    },
+                });
             }
         }
         None
@@ -137,7 +167,7 @@ impl<'a> Scope<'a> {
         self.top().var.get(name).cloned()
     }
 
-    pub fn find_func(&self, name: &'a str) -> Option<(Type<'a>, Vec<Type<'a>>)> {
+    pub fn find_gb_func(&self, name: &'a str) -> Option<(Type<'a>, Vec<Type<'a>>)> {
         self.layers[0].func.get(name).cloned()
     }
 
@@ -180,19 +210,10 @@ impl<'a> Scope<'a> {
     }
 }
 
-pub fn check(ast: &ASTNode) -> bool {
-    let res = panic::catch_unwind(|| {
-        let mut scope = Scope::new();
-        let mut ctx = Context::new();
-        dfs(ast, &mut scope, &mut ctx);
-    });
-    match res {
-        Ok(_) => { true }
-        Err(err) => {
-            println!("{:?}", err);
-            false
-        }
-    }
+pub fn check(ast: &ASTNode) {
+    let mut scope = Scope::new();
+    let mut ctx = Context::new();
+    dfs(ast, &mut scope, &mut ctx);
 }
 
 fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> ExprInfo<'a> {
@@ -203,7 +224,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             for node in ch {
                 match node {
                     ASTNode::FuncDef(ty, name, args, _) => {
-                        if let Some(_) = scope.find_func(name) {
+                        if let Some(_) = scope.find_gb_func(name) {
                             panic!("Duplicate function definition");
                         }
                         if let Some(_) = scope.find_class(name) {
@@ -214,12 +235,15 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                             if ty.name != "int" {
                                 panic!("Main function should return int.")
                             }
+                            if args.len() != 0 {
+                                panic!("Main function should have no arguments.")
+                            }
                         }
                         let args: Vec<Type> = args.iter().map(|(ty, _)| ty.clone()).collect();
                         scope.insert_func(name, ty, &args);
                     }
                     ASTNode::ClassDef(name, ch) => {
-                        if let Some(_) = scope.find_func(name) {
+                        if let Some(_) = scope.find_gb_func(name) {
                             panic!("Class name conflict with function name");
                         }
                         if let Some(_) = scope.find_class(name) {
@@ -281,7 +305,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 panic!("Cannot declare void vars!")
             }
             for (name, op) in ch {
-                if let Some(_) = scope.find_func(name) {
+                if let Some(_) = scope.find_gb_func(name) {
                     // 变量名和函数名不能重复
                     panic!("Var name conflicts with function name.")
                 }
@@ -290,7 +314,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 }
                 if let Some(expr) = op {
                     let expr_info = dfs(expr, scope, ctx);
-                    if *ty != expr_info.ty && expr_info.ty.name != "void" {
+                    if *ty != expr_info.ty && expr_info.ty.name != "null" {
                         // 声明类型和初始化表达式类型不匹配
                         panic!("VarDecl. Type doesn't match.")
                     }
@@ -312,7 +336,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             for ret_ty in ctx.ret_types.iter() {
                 if *ret_ty != *ty {
                     // 函数返回类型和返回表达式类型不匹配
-                    panic!("FuncDef. Type doesn't match.")
+                    if ty.is_primitive() || ret_ty.name != "null" {
+                        panic!("FuncDef. Type doesn't match.")
+                    }
                 }
             }
             scope.pop();
@@ -329,12 +355,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 panic!("ConstrDef. Not in class.")
             }
             scope.push(Func);
-            let expr_info = dfs(block, scope, ctx);
-            if expr_info.ty.name != "void" {
-                // 构造函数不能有返回值
-                panic!("ConstrDef. What the fuck did you return?")
+            dfs(block, scope, ctx);
+            for ret_ty in ctx.ret_types.iter() {
+                if ret_ty.name != "void" {
+                    panic!("ConstrDef. Cannot return non-void value.")
+                }
             }
             scope.pop();
+            ctx.ret_types.clear();
             ExprInfo::void()
         }
         ASTNode::ClassDef(name, block) => {
@@ -346,12 +374,19 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                             scope.insert_var(name, ty.clone());
                         }
                     }
+                    ASTNode::FuncDef(ret_ty, name, args, _) => {
+                        let args = args.iter().map(|(ty, _)| ty.clone()).collect();
+                        scope.insert_func(name, ret_ty, &args);
+                    }
                     _ => {}
                 }
             }
             for mem in block {
                 match mem {
                     ASTNode::FuncDef(_, _, _, _) => {
+                        dfs(mem, scope, ctx);
+                    }
+                    ASTNode::ConstrDef(_, _) => {
                         dfs(mem, scope, ctx);
                     }
                     _ => {}
@@ -379,7 +414,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                         gb_func: None,
                     }
                 }
-                None => panic!()
+                None => panic!("ThisExpr. Not in class.")
             }
         }
         ASTNode::ArrayInit(name, sizes, op) => {
@@ -431,22 +466,42 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             if lhs_info.ty != rhs_info.ty {
                 // 先解决类型不等的情况
                 if *name == "=" {
-                    if lhs_info.is_left && rhs_info.ty.name == "void" {
-                        return ExprInfo::void();
+                    if lhs_info.is_left && rhs_info.ty.name == "null" {
+                        if lhs_info.ty.is_primitive() {
+                            panic!("Null cannot be assigned to primitive type variable")
+                        } else {
+                            return ExprInfo::void();
+                        }
                     } else {
                         panic!("BinaryExpr. Type doesn't match.")
                     }
                 }
                 if *name == "==" || *name == "!=" {
-                    if (lhs_info.ty.dim > 0 && rhs_info.ty.name == "void") || (rhs_info.ty.dim > 0 && lhs_info.ty.name == "void") {
-                        return ExprInfo::void();
+                    if (!lhs_info.ty.is_primitive() && rhs_info.ty.name == "null") || (!rhs_info.ty.is_primitive() && lhs_info.ty.name == "null") {
+                        return ExprInfo {
+                            ty: Type { name: "bool", dim: 0 },
+                            is_left: false,
+                            is_const: lhs_info.is_const && rhs_info.is_const,
+                            mem: None,
+                            gb_func: None,
+                        };
                     } else {
                         panic!("BinaryExpr. Type doesn't match.")
                     }
                 }
+                panic!("BinaryExpr. Type doesn't match.")
             }
-            if lhs_info.ty.name == "void" || rhs_info.ty.name == "void" {
-                panic!("Null can't appear in binary expression.")
+            if lhs_info.ty.name == "null" {
+                if *name == "==" || *name == "!=" {
+                    return ExprInfo {
+                        ty: Type { name: "bool", dim: 0 },
+                        is_left: false,
+                        is_const: false,
+                        mem: None,
+                        gb_func: None,
+                    };
+                }
+                panic!("BinaryExpr. Null type.")
             }
             // 类型相等
             match *name {
@@ -534,18 +589,54 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 _ => { panic!("What fucking binary operator?") }
             }
         }
-        ASTNode::UnitaryExpr(_, rhs) => {
+        ASTNode::UnitaryExpr(name, rhs) => {
             let rhs_info = dfs(rhs, scope, ctx);
-            if rhs_info.ty.name == "int" && rhs_info.ty.dim == 0 {
-                ExprInfo {
-                    ty: rhs_info.ty,
-                    is_left: false,
-                    is_const: false,
-                    mem: None,
-                    gb_func: None,
+
+            match *name {
+                "++" | "--" => {
+                    if rhs_info.is_left {
+                        if rhs_info.ty.name == "int" && rhs_info.ty.dim == 0 {
+                            return ExprInfo {
+                                ty: rhs_info.ty,
+                                is_left: true,
+                                is_const: false,
+                                mem: None,
+                                gb_func: None,
+                            };
+                        } else {
+                            panic!("Only int can be ++/--")
+                        }
+                    } else {
+                        panic!("Only left value can be incremented")
+                    }
                 }
-            } else {
-                panic!("What the fuck did you put in unary expression?")
+                "!" => {
+                    if rhs_info.ty.name == "bool" && rhs_info.ty.dim == 0 {
+                        return ExprInfo {
+                            ty: rhs_info.ty,
+                            is_left: false,
+                            is_const: false,
+                            mem: None,
+                            gb_func: None,
+                        };
+                    } else {
+                        panic!("Only bool can be !")
+                    }
+                }
+                "+" | "-" | "~" => {
+                    if rhs_info.ty.name == "int" && rhs_info.ty.dim == 0 {
+                        return ExprInfo {
+                            ty: rhs_info.ty,
+                            is_left: false,
+                            is_const: false,
+                            mem: None,
+                            gb_func: None,
+                        };
+                    } else {
+                        panic!("Only int can be +-~")
+                    }
+                }
+                _ => { panic!("What the fuck operator?") }
             }
         }
         ASTNode::TernaryExpr(cond, expr1, expr2) => {
@@ -564,7 +655,29 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                         gb_func: None,
                     }
                 } else {
-                    panic!("TernaryExpr. Expr1 and expr2 type mismatched!")
+                    if expr1_info.ty.is_primitive() || expr2_info.ty.is_primitive() {
+                        panic!("TernaryExpr. Expr1 and expr2 type mismatched!")
+                    } else {
+                        if expr1_info.ty.name == "null" {
+                            ExprInfo {
+                                ty: expr2_info.ty,
+                                is_left: false,
+                                is_const: false,
+                                mem: None,
+                                gb_func: None,
+                            }
+                        } else if expr2_info.ty.name == "null" {
+                            ExprInfo {
+                                ty: expr1_info.ty,
+                                is_left: false,
+                                is_const: false,
+                                mem: None,
+                                gb_func: None,
+                            }
+                        } else {
+                            panic!("TernaryExpr. Expr1 and expr2 type mismatched!")
+                        }
+                    }
                 }
             } else {
                 panic!("TernaryExpr. Cond is not bool type!")
@@ -669,13 +782,15 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                     match method {
                         Member::Func(ret_ty, args) => {
                             if args.len() != params.len() {
-                                panic!("FuncCall. Args number mismatched.")
+                                panic!("MethodCall. Args number mismatched.")
                             }
                             let my_type = ret_ty.clone();
                             for (arg_ty, param) in args.iter().zip(params) {
                                 let param_info = dfs(param, scope, ctx);
                                 if *arg_ty != param_info.ty {
-                                    panic!("FuncCall. Args type mismatched.")
+                                    if arg_ty.is_primitive() || param_info.ty.name != "null" {
+                                        panic!("MethodCall. Args type mismatched.")
+                                    }
                                 }
                             }
                             return ExprInfo {
@@ -686,14 +801,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                                 gb_func: None,
                             };
                         }
-                        _ => { panic!("FuncCall. Member is not a function.") }
+                        _ => { panic!("MethodCall. Member is not a function.") }
                     }
                 } else {
-                    panic!("FuncCall. Member not found.")
+                    panic!("MethodCall. Member not found.")
                 }
             }
             // 全局函数
-            if let Some((ret_ty, args)) = scope.find_func(&lhs_info.gb_func.unwrap()) {
+            if let Some((ret_ty, args)) = scope.find_gb_func(&lhs_info.gb_func.unwrap()) {
                 if args.len() != params.len() {
                     panic!("FuncCall. Args number mismatched.")
                 }
@@ -701,7 +816,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 for (arg_ty, param) in args.iter().zip(params) {
                     let param_info = dfs(param, scope, ctx);
                     if *arg_ty != param_info.ty {
-                        panic!("FuncCall. Args type mismatched.")
+                        if arg_ty.is_primitive() || param_info.ty.name != "null" {
+                            panic!("FuncCall. Args type mismatched.")
+                        }
                     }
                 }
                 return ExprInfo {
@@ -782,7 +899,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             ExprInfo::void()
         }
         ASTNode::NULL => {
-            ExprInfo::void()
+            ExprInfo {
+                ty: Type { name: "null", dim: 0 },
+                is_left: false,
+                is_const: true,
+                mem: None,
+                gb_func: None,
+            }
         }
         ASTNode::Int(_) => {
             ExprInfo {
@@ -821,9 +944,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                         panic!("ArrConst. Dim mismatched.")
                     }
 
-                    if my_type.name == "void" {
+                    if my_type.name == "null" {
                         my_type_op = Some(const_info.ty);
-                    } else if const_info.ty.name != "void" {
+                    } else if const_info.ty.name != "null" {
                         panic!("ArrConst. Type mismatched.")
                     }
                 } else {
@@ -831,7 +954,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 }
             }
             if my_type_op == None {
-                my_type_op = Some(Type { name: "void", dim: 0 });
+                my_type_op = Some(Type { name: "null", dim: 0 });
             }
             ExprInfo {
                 ty: Type {
@@ -854,39 +977,35 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             }
         }
         ASTNode::Ident(name) => {
-            if let Some(ty) = scope.find_var(name) {
-                return ExprInfo {
-                    ty: ty.clone(),
-                    is_left: true,
-                    is_const: false,
-                    mem: None,
-                    gb_func: None,
-                };
+            if let Some(res) = scope.find_ident(name) {
+                return res;
             }
-            if let Some(class_name) = scope.get_class_name() {
-                let member = scope.get_member(class_name, name).unwrap();
-                match member {
-                    Member::Func(_, _) => {
-                        return ExprInfo {
-                            ty: Type { name: "#FUNC#", dim: 0 },
-                            is_left: false,
-                            is_const: false,
-                            mem: Some((Some(class_name), Some(name))),
-                            gb_func: None,
-                        }
-                    }
-                    _ => { panic!() }
-                }
-            }
-            if let Some((_, _)) = scope.find_func(name) {
-                return ExprInfo {
-                    ty: Type { name: "#FUNC#", dim: 0 },
-                    is_left: false,
-                    is_const: false,
-                    mem: None,
-                    gb_func: Some(name),
-                };
-            }
+            // if let Some(class_name) = scope.get_class_name() {
+            //     // 在类作用域内，考虑方法
+            //     if let Some(member) = scope.get_member(class_name, name) {
+            //         match member {
+            //             Member::Func(_, _) => {
+            //                 return ExprInfo {
+            //                     ty: Type { name: "#FUNC#", dim: 0 },
+            //                     is_left: false,
+            //                     is_const: false,
+            //                     mem: Some((Some(class_name), Some(name))),
+            //                     gb_func: None,
+            //                 }
+            //             }
+            //             _ => { panic!() }
+            //         }
+            //     }
+            // }
+            // if let Some((_, _)) = scope.find_gb_func(name) {
+            //     return ExprInfo {
+            //         ty: Type { name: "#FUNC#", dim: 0 },
+            //         is_left: false,
+            //         is_const: false,
+            //         mem: None,
+            //         gb_func: Some(name),
+            //     };
+            // }
             panic!("Undefined identifier.")
         }
     }

@@ -62,6 +62,12 @@ impl<'a> PartialEq for Type<'a> {
     }
 }
 
+impl<'a> Type<'a> {
+    pub fn is_primitive(&self) -> bool {
+        self.dim == 0 && (self.name == "int" || self.name == "bool" || self.name == "string")
+    }
+}
+
 pub fn visit_file(pair: Pair<Rule>) -> ASTNode {
     let mut ast = vec![];
     for inner_pair in pair.into_inner() {
@@ -393,7 +399,7 @@ fn visit_suffix_expr(pair: Pair<Rule>) -> ASTNode {
                 let params_inner_pair = inner_pair.into_inner().next().unwrap();
                 let mut params = vec![];
                 for param_pair in params_inner_pair.into_inner() {
-                    params.push(visit_test(param_pair));
+                    params.push(visit_expr(param_pair));
                 }
                 lhs = ASTNode::FuncCall(Box::new(lhs), params);
             }

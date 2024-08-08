@@ -1,11 +1,11 @@
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
-line_comment = _{ "//" ~ (!"\n" ~ ANY)* ~ "\n" }
+line_comment = _{ "//" ~ (!"\n" ~ ANY)* ~ ( "\n" )? }
 block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 COMMENT = _{ line_comment | block_comment }
 file = { SOI ~ ( ( var_decl ~ ";" ) | func_def | class_def )* ~ EOI }
 
 block = { normal_block | small_block }
-small_block = { stmt? }
+small_block = { ";" | stmt? }
 normal_block = { "{" ~ ( normal_block | stmt | ";" )* ~ "}" }
 stmt = { simple_stmt | flow_stmt | compound_stmt }
 simple_stmt = { ( var_decl | expr ) ~ ";" }
@@ -17,9 +17,9 @@ base_expr = { ( test ~ ( "=" ~ expr )? ) | new_expr | arr_const }
 arr_const = { "{" ~ CONST? ~ ( "," ~ CONST )* ~ "}" }
 new_expr = { "new" ~ ( array_init | class_init ) }
 
-class_init = { ( builtin_type | user_type ) ~ ( "()" )? }
-array_init = { ( builtin_type | user_type ) ~ ( ( "[" ~ expr ~ "]" )+ ~ blank_bracket* ) | ( blank_bracket* ~ arr_const ) }
-blank_bracket = { "[]" }
+class_init = { ( user_type | builtin_type ) ~ ( "(" ~ ")" )? }
+array_init = { ( user_type | builtin_type ) ~ ( ( "[" ~ expr ~ "]" )+ ~ blank_bracket* ) | ( blank_bracket* ~ arr_const ) }
+blank_bracket = { "[" ~ "]" }
 
 test = { or_test }
 or_test = { and_test ~ ( "||" ~ and_test )* }
@@ -66,7 +66,7 @@ increment = { "++" | "--" }
 array_access = { "[" ~ expr ~ "]" }
 member_access = { "." ~ ident }
 func_call = { "(" ~ test_list ~ ")" }
-test_list = { ( test ~ ( "," ~ test )* )? }
+test_list = { ( expr ~ ( "," ~ expr )* )? }
 
 var_decl = { TYPE ~ assign ~ ( "," ~ assign )* }
 assign = { ident ~ ( "=" ~ expr )? }
@@ -90,7 +90,7 @@ constr_def = { ident ~ "(" ~ ")" ~ block }
 arg_list = { ( TYPE ~ ident ~ ( "," ~ TYPE ~ ident )* )? }
 class_def = { "class" ~ ident ~ "{" ~ ( ( var_decl ~ ";" ) | constr_def | func_def )* ~ "}" ~ ";" }
 
-TYPE = { ( builtin_type | user_type ) ~ blank_bracket* }
+TYPE = { ( user_type | builtin_type  ) ~ blank_bracket* }
 builtin_type = @{ "void" | "bool" | "int" | "string" }
 user_type = { ident }
 ident = @{ ( keyword ~ ( ASCII_ALPHANUMERIC | "_" )+ ) | ( !keyword ~ ( ASCII_ALPHA ~ ( ASCII_ALPHANUMERIC | "_" ){0, 63} ) ) }
