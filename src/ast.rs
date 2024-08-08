@@ -50,7 +50,7 @@ pub enum ASTNode<'a> {
 }
 
 #[derive(Debug)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Type<'a> {
     pub name: &'a str,
     pub dim: i32,

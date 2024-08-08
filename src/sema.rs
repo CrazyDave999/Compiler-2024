@@ -1,32 +1,62 @@
 use std::collections::HashMap;
+use std::panic;
 use crate::ast::{ASTNode, Type};
-use crate::sema::ScopeType::{Class, Func, Global};
+use crate::sema::ScopeType::{Class, Func, Global, Loop};
 
 struct Context<'a> {
-    ty: Type<'a>, // 当前表达式的类型
-    is_left: bool, // 当前表达式是否左值
-    class_name: &'a mut str, // 当前类名
+    ret_types: Vec<Type<'a>>,
 }
+
+impl Context<'_> {
+    pub fn new() -> Self {
+        Context {
+            ret_types: vec![],
+        }
+    }
+}
+
+#[derive(PartialEq)]
+struct ExprInfo<'a> {
+    ty: Type<'a>,
+    is_left: bool,
+    is_const: bool,
+    mem: Option<(Option<&'a str>, Option<&'a str>)>, // class name, member name
+    gb_func: Option<&'a str>, // function name
+}
+
+impl<'a> ExprInfo<'a> {
+    pub fn void() -> Self {
+        ExprInfo {
+            ty: Type { name: "void", dim: 0 },
+            is_left: false,
+            is_const: false,
+            mem: None,
+            gb_func: None,
+        }
+    }
+}
+
 #[derive(Clone)]
 enum Member<'a> {
     Var(Type<'a>),
     Func(Type<'a>, Vec<Type<'a>>),
 }
-enum ScopeType {
+enum ScopeType<'a> {
     Global,
     Func,
-    Class,
+    Class(&'a str),
     Block,
+    Loop,
 }
 struct ScopeLayer<'a> {
-    ty: ScopeType,
+    ty: ScopeType<'a>,
     var: HashMap<&'a str, Type<'a>>, // type
     func: HashMap<&'a str, (Type<'a>, Vec<Type<'a>>)>, // (return type, args)
     class: HashMap<&'a str, HashMap<&'a str, Member<'a>>>, // members
 }
 
 impl<'a> ScopeLayer<'a> {
-    pub fn new(scope_type: ScopeType) -> Self {
+    pub fn new(scope_type: ScopeType<'a>) -> Self {
         ScopeLayer {
             ty: scope_type,
             var: HashMap::new(),
@@ -45,10 +75,18 @@ impl<'a> Scope<'a> {
         let mut scope = Scope {
             layers: vec![ScopeLayer::new(Global)],
         };
+
         // builtin types
         scope.insert_class("int", HashMap::new());
         scope.insert_class("bool", HashMap::new());
-        scope.insert_class("string", HashMap::new());
+
+        let mut str_hash_map = HashMap::new();
+        str_hash_map.insert("length", Member::Func(Type { name: "int", dim: 0 }, vec![]));
+        str_hash_map.insert("substring", Member::Func(Type { name: "string", dim: 0 }, vec![Type { name: "int", dim: 0 }, Type { name: "int", dim: 0 }]));
+        str_hash_map.insert("parseInt", Member::Func(Type { name: "int", dim: 0 }, vec![]));
+        str_hash_map.insert("ord", Member::Func(Type { name: "int", dim: 0 }, vec![Type { name: "int", dim: 0 }]));
+
+        scope.insert_class("string", str_hash_map);
 
         // builtin functions
         scope.insert_func("print", &Type { name: "void", dim: 0 }, &vec![Type { name: "string", dim: 0 }]);
@@ -60,15 +98,15 @@ impl<'a> Scope<'a> {
         scope.insert_func("toString", &Type { name: "string", dim: 0 }, &vec![Type { name: "int", dim: 0 }]);
         scope
     }
-    pub fn push(&mut self, ty: ScopeType) {
+    pub fn push(&mut self, ty: ScopeType<'a>) {
         self.layers.push(ScopeLayer::new(ty));
     }
     pub fn pop(&mut self) {
         self.layers.pop();
     }
-    pub fn index(&self) -> usize {
-        self.layers.len() - 1
-    }
+    // pub fn index(&self) -> usize {
+    //     self.layers.len() - 1
+    // }
 
     fn top(&mut self) -> &mut ScopeLayer<'a> {
         self.layers.last_mut().unwrap()
@@ -95,75 +133,134 @@ impl<'a> Scope<'a> {
         None
     }
 
-    pub fn find_func(&self, name: &'a str) -> Option<&(Type<'a>, Vec<Type<'a>>)> {
-        self.layers[0].func.get(name)
+    pub fn find_var_top(&mut self, name: &'a str) -> Option<Type<'a>> {
+        self.top().var.get(name).cloned()
+    }
+
+    pub fn find_func(&self, name: &'a str) -> Option<(Type<'a>, Vec<Type<'a>>)> {
+        self.layers[0].func.get(name).cloned()
     }
 
     pub fn find_class(&self, name: &'a str) -> Option<&HashMap<&'a str, Member<'a>>> {
         self.layers[0].class.get(name)
     }
+    pub fn get_member(&self, class_name: &'a str, mem_name: &'a str) -> Option<Member<'a>> {
+        if let Some(members) = self.find_class(class_name) {
+            members.get(mem_name).cloned()
+        } else {
+            None
+        }
+    }
+
+    pub fn get_class_name(&self) -> Option<&'a str> {
+        if self.layers.len() < 1 {
+            return None;
+        }
+        match self.layers[1].ty {
+            Class(name) => Some(name),
+            _ => None
+        }
+    }
+
+    pub fn is_in_func(&self) -> bool {
+        for layer in self.layers.iter().rev() {
+            if let Func = layer.ty {
+                return true;
+            }
+        }
+        false
+    }
+    pub fn is_in_loop(&self) -> bool {
+        for layer in self.layers.iter().rev() {
+            if let Loop = layer.ty {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 pub fn check(ast: &ASTNode) -> bool {
-    true
+    let res = panic::catch_unwind(|| {
+        let mut scope = Scope::new();
+        let mut ctx = Context::new();
+        dfs(ast, &mut scope, &mut ctx);
+    });
+    match res {
+        Ok(_) => { true }
+        Err(err) => {
+            println!("{:?}", err);
+            false
+        }
+    }
 }
 
-fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context<'a>, scope: &mut Scope<'a>) -> bool {
+fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> ExprInfo<'a> {
     match ast {
         ASTNode::Root(ch) => {
             // 先收集所有的函数定义及类定义，加入作用域
+            let mut main = false;
             for node in ch {
                 match node {
-                    ASTNode::FuncDef(ty, name, args, block) => {
+                    ASTNode::FuncDef(ty, name, args, _) => {
                         if let Some(_) = scope.find_func(name) {
-                            return false;
+                            panic!("Duplicate function definition");
                         }
                         if let Some(_) = scope.find_class(name) {
-                            return false;
+                            panic!("Function name conflict with class name");
+                        }
+                        if *name == "main" {
+                            main = true;
+                            if ty.name != "int" {
+                                panic!("Main function should return int.")
+                            }
                         }
                         let args: Vec<Type> = args.iter().map(|(ty, _)| ty.clone()).collect();
                         scope.insert_func(name, ty, &args);
                     }
                     ASTNode::ClassDef(name, ch) => {
                         if let Some(_) = scope.find_func(name) {
-                            return false;
+                            panic!("Class name conflict with function name");
                         }
                         if let Some(_) = scope.find_class(name) {
-                            return false;
+                            panic!("Duplicate class definition");
                         }
                         let mut members = HashMap::new();
                         let mut constr = false;
                         for mem in ch {
                             match mem {
-                                ASTNode::ConstrDef(name, block) => {
+                                ASTNode::ConstrDef(_, _) => {
                                     if constr {
                                         // Two construct function
-                                        return false;
+                                        panic!("Two construct function");
                                     }
                                     constr = true;
                                 }
                                 ASTNode::VarDecl(ty, ch) => {
+                                    if ty.name == "void" {
+                                        panic!("Cannot declare void vars!")
+                                    }
                                     for (name, op) in ch {
                                         if members.contains_key(name) {
                                             // 重复定义
-                                            return false;
+                                            panic!("Duplicate var definition")
                                         }
                                         if let Some(_) = op {
                                             // 类成员默认初始化表达式为非法
-                                            return false;
+                                            panic!("Class member default init")
                                         }
-                                        members.insert(name.clone(), Member::Var(ty.clone()));
+                                        members.insert(*name, Member::Var(ty.clone()));
                                     }
                                 }
                                 ASTNode::FuncDef(ty, name, args, _) => {
                                     if members.contains_key(name) {
                                         // 重复定义
-                                        return false;
+                                        panic!("Method name conflict with member or function");
                                     }
-                                    let args = args.iter().map(|(ty, name)| ty.clone()).collect();
+                                    let args = args.iter().map(|(ty, _)| ty.clone()).collect();
                                     members.insert(name, Member::Func(ty.clone(), args));
                                 }
-                                _ => { unreachable!() }
+                                _ => { panic!("What the fuck is the class?") }
                             }
                         }
                         scope.insert_class(name, members);
@@ -171,31 +268,36 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context<'a>, scope: &mut Scope<'a>) -> b
                     _ => {}
                 }
             }
-            for node in ch {
-                if !dfs(node, ctx, scope) {
-                    return false;
-                }
+            if !main {
+                panic!("No main function!")
             }
-            true
+            for node in ch {
+                dfs(node, scope, ctx);
+            }
+            ExprInfo::void()
         }
         ASTNode::VarDecl(ty, ch) => {
+            if ty.name == "void" {
+                panic!("Cannot declare void vars!")
+            }
             for (name, op) in ch {
                 if let Some(_) = scope.find_func(name) {
                     // 变量名和函数名不能重复
-                    return false;
+                    panic!("Var name conflicts with function name.")
+                }
+                if let Some(_) = scope.find_var_top(name) {
+                    panic!("Duplicate var names in same scope.")
                 }
                 if let Some(expr) = op {
-                    if !dfs(expr, ctx, scope) {
-                        return false;
-                    }
-                    if *ty != ctx.ty {
+                    let expr_info = dfs(expr, scope, ctx);
+                    if *ty != expr_info.ty && expr_info.ty.name != "void" {
                         // 声明类型和初始化表达式类型不匹配
-                        return false;
+                        panic!("VarDecl. Type doesn't match.")
                     }
                 }
                 scope.insert_var(name, ty.clone());
             }
-            true
+            ExprInfo::void()
         }
         ASTNode::FuncDef(ty, name, args, block) => {
             // 考虑形参可以与函数重名
@@ -203,248 +305,589 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context<'a>, scope: &mut Scope<'a>) -> b
             for (ty, name) in args {
                 scope.insert_var(name, ty.clone());
             }
-            if !dfs(block, ctx, scope) {
-                return false;
+            dfs(block, scope, ctx);
+            if ty.name != "void" && ctx.ret_types.len() == 0 && *name != "main" {
+                panic!("FuncDef. Non void function should have return value.")
+            }
+            for ret_ty in ctx.ret_types.iter() {
+                if *ret_ty != *ty {
+                    // 函数返回类型和返回表达式类型不匹配
+                    panic!("FuncDef. Type doesn't match.")
+                }
             }
             scope.pop();
-            true
+            ctx.ret_types.clear();
+            ExprInfo::void()
         }
         ASTNode::ConstrDef(name, block) => {
+            if let Some(class_name) = scope.get_class_name() {
+                if **name != *class_name {
+                    // 构造函数名和类名不匹配
+                    panic!("ConstrDef. Name doesn't match.")
+                }
+            } else {
+                panic!("ConstrDef. Not in class.")
+            }
             scope.push(Func);
-            if !dfs(block, ctx, scope) {
-                return false;
+            let expr_info = dfs(block, scope, ctx);
+            if expr_info.ty.name != "void" {
+                // 构造函数不能有返回值
+                panic!("ConstrDef. What the fuck did you return?")
             }
             scope.pop();
-            true
+            ExprInfo::void()
         }
         ASTNode::ClassDef(name, block) => {
-            scope.push(Class);
-            ctx.class_name = &mut name.clone();
+            scope.push(Class(name));
+            for mem in block {
+                match mem {
+                    ASTNode::VarDecl(ty, ch) => {
+                        for (name, _) in ch {
+                            scope.insert_var(name, ty.clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
             for mem in block {
                 match mem {
                     ASTNode::FuncDef(_, _, _, _) => {
-                        if !dfs(mem, ctx, scope) {
-                            return false;
-                        }
+                        dfs(mem, scope, ctx);
                     }
-                    _ => unreachable!()
+                    _ => {}
                 }
             }
-            ctx.class_name = &mut "";
             scope.pop();
-            true
+            ExprInfo::void()
         }
         ASTNode::Block(ch) => {
             scope.push(ScopeType::Block);
             for node in ch {
-                if !dfs(node, ctx, scope) {
-                    return false;
-                }
+                dfs(node, scope, ctx);
             }
             scope.pop();
-            true
+            ExprInfo::void()
         }
         ASTNode::ThisExpr => {
-            true
+            match scope.get_class_name() {
+                Some(name) => {
+                    ExprInfo {
+                        ty: Type { name, dim: 0 },
+                        is_left: false,
+                        is_const: false,
+                        mem: None,
+                        gb_func: None,
+                    }
+                }
+                None => panic!()
+            }
         }
         ASTNode::ArrayInit(name, sizes, op) => {
             if let Some(_) = scope.find_class(name) {
-                let mut my_type = Type { name, dim: sizes.len() as i32 };
-                if let Some(expr) = op {
-                    if !dfs(expr, ctx, scope) {
-                        return false;
-                    }
-                    if my_type != ctx.ty {
-                        return false;
+                let my_type = Type { name, dim: sizes.len() as i32 };
+
+                for node in sizes {
+                    if let Some(expr) = node {
+                        let expr_info = dfs(expr, scope, ctx);
+                        if expr_info.ty.name != "int" || expr_info.ty.dim != 0 {
+                            panic!("ArrayInit. Size is not int.")
+                        }
                     }
                 }
-                ctx.ty = my_type;
-                true
+
+                if let Some(expr) = op {
+                    let expr_info = dfs(expr, scope, ctx);
+                    if my_type != expr_info.ty {
+                        panic!("ArrayInit. Type doesn't match.")
+                    }
+                }
+                ExprInfo {
+                    ty: my_type,
+                    is_left: false,
+                    is_const: false,
+                    mem: None,
+                    gb_func: None,
+                }
             } else {
-                false
+                panic!("ArrayInit. Class not found.")
             }
         }
         ASTNode::ClassInit(name) => {
             if let Some(_) = scope.find_class(name) {
-                ctx.ty = Type { name, dim: 0 };
-                true
+                ExprInfo {
+                    ty: Type { name, dim: 0 },
+                    is_left: false,
+                    is_const: false,
+                    mem: None,
+                    gb_func: None,
+                }
             } else {
-                false
+                panic!("ClassInit. Class not found.")
             }
         }
         ASTNode::BinaryExpr(name, lhs, rhs) => {
-            if !dfs(lhs, ctx, scope) {
-                return false;
-            }
-            let lhs_ty = ctx.ty.clone();
-            let lhs_left = ctx.is_left;
-            if !dfs(rhs, ctx, scope) {
-                return false;
-            }
-            let rhs_ty = ctx.ty.clone();
-            if lhs_ty != rhs_ty {
+            let lhs_info = dfs(lhs, scope, ctx);
+            let rhs_info = dfs(rhs, scope, ctx);
+            if lhs_info.ty != rhs_info.ty {
                 // 先解决类型不等的情况
                 if *name == "=" {
-                    return if lhs_left && rhs_ty.name == "null" {
-                        ctx.ty = lhs_ty;
-                        true
+                    if lhs_info.is_left && rhs_info.ty.name == "void" {
+                        return ExprInfo::void();
                     } else {
-                        false
-                    };
+                        panic!("BinaryExpr. Type doesn't match.")
+                    }
                 }
-
                 if *name == "==" || *name == "!=" {
-                    return if !((lhs_ty.dim > 0 && rhs_ty.name == "null") || (rhs_ty.dim > 0 && lhs_ty.name == "null")) {
-                        false
+                    if (lhs_info.ty.dim > 0 && rhs_info.ty.name == "void") || (rhs_info.ty.dim > 0 && lhs_info.ty.name == "void") {
+                        return ExprInfo::void();
                     } else {
-                        ctx.ty = Type { name: "bool", dim: 0 };
-                        true
-                    };
+                        panic!("BinaryExpr. Type doesn't match.")
+                    }
                 }
             }
-            if lhs_ty.name == "null" || rhs_ty.name == "null" {
-                return false;
+            if lhs_info.ty.name == "void" || rhs_info.ty.name == "void" {
+                panic!("Null can't appear in binary expression.")
             }
             // 类型相等
             match *name {
                 "+" => {
-                    if lhs_ty.dim == 0 && (lhs_ty.name == "int" || lhs_ty.name == "string") {
-                        ctx.ty = lhs_ty;
-                        true
+                    if lhs_info.ty.dim == 0 && (lhs_info.ty.name == "int" || lhs_info.ty.name == "string") {
+                        ExprInfo {
+                            ty: lhs_info.ty,
+                            is_left: false,
+                            is_const: lhs_info.is_const && rhs_info.is_const,
+                            mem: None,
+                            gb_func: None,
+                        }
                     } else {
-                        false
+                        panic!("What the fuck did you add?")
                     }
                 }
                 "-" | "*" | "/" | "%" => {
-                    if lhs_ty.dim == 0 && lhs_ty.name == "int" {
-                        ctx.ty = lhs_ty;
-                        true
+                    if lhs_info.ty.dim == 0 && rhs_info.ty.name == "int" {
+                        ExprInfo {
+                            ty: lhs_info.ty,
+                            is_left: false,
+                            is_const: lhs_info.is_const && rhs_info.is_const,
+                            mem: None,
+                            gb_func: None,
+                        }
                     } else {
-                        false
+                        panic!("What the fuck did you -*/% ?")
                     }
                 }
                 "<" | ">" | "<=" | ">=" => {
-                    if lhs_ty.dim == 0 && (lhs_ty.name == "int" || lhs_ty.name == "string") {
-                        ctx.ty = Type { name: "bool", dim: 0 };
-                        true
+                    if lhs_info.ty.dim == 0 && (lhs_info.ty.name == "int" || lhs_info.ty.name == "string") {
+                        ExprInfo {
+                            ty: Type { name: "bool", dim: 0 },
+                            is_left: false,
+                            is_const: lhs_info.is_const && rhs_info.is_const,
+                            mem: None,
+                            gb_func: None,
+                        }
                     } else {
-                        false
+                        panic!("What the fuck did you compare?")
                     }
                 }
                 "==" | "!=" => {
-                    ctx.ty = Type { name: "bool", dim: 0 };
-                    true
+                    ExprInfo {
+                        ty: Type { name: "bool", dim: 0 },
+                        is_left: false,
+                        is_const: lhs_info.is_const && rhs_info.is_const,
+                        mem: None,
+                        gb_func: None,
+                    }
                 }
                 "&&" | "||" => {
-                    if lhs_ty.dim == 0 && lhs_ty.name == "bool" {
-                        ctx.ty = lhs_ty;
-                        true
+                    if lhs_info.ty.dim == 0 && lhs_info.ty.name == "bool" {
+                        ExprInfo {
+                            ty: Type { name: "bool", dim: 0 },
+                            is_left: false,
+                            is_const: lhs_info.is_const && rhs_info.is_const,
+                            mem: None,
+                            gb_func: None,
+                        }
                     } else {
-                        false
+                        panic!("What the fuck did you &&|| ?")
                     }
                 }
                 "<<" | ">>" | "&" | "|" | "^" => {
-                    if lhs_ty.dim == 0 && lhs_ty.name == "int" {
-                        ctx.ty = lhs_ty;
-                        true
+                    if lhs_info.ty.dim == 0 && lhs_info.ty.name == "int" {
+                        ExprInfo {
+                            ty: lhs_info.ty,
+                            is_left: false,
+                            is_const: lhs_info.is_const && rhs_info.is_const,
+                            mem: None,
+                            gb_func: None,
+                        }
                     } else {
-                        false
+                        panic!("What the fuck did you put in logic expr?")
                     }
                 }
                 "=" => {
-                    if lhs_left {
-                        ctx.ty = lhs_ty;
-                        true
+                    if lhs_info.is_left {
+                        ExprInfo::void()
                     } else {
-                        false
+                        panic!("Right value assignment")
                     }
                 }
-                _ => { false }
+                _ => { panic!("What fucking binary operator?") }
             }
         }
-        ASTNode::UnitaryExpr(name, rhs) => {
-            if !dfs(rhs, ctx, scope) {
-                return false;
-            }
-            let rhs_ty = ctx.ty.clone();
-            let rhs_left = ctx.is_left;
-            if rhs_left && rhs_ty.name == "int" && rhs_ty.dim == 0 {
-                true
+        ASTNode::UnitaryExpr(_, rhs) => {
+            let rhs_info = dfs(rhs, scope, ctx);
+            if rhs_info.ty.name == "int" && rhs_info.ty.dim == 0 {
+                ExprInfo {
+                    ty: rhs_info.ty,
+                    is_left: false,
+                    is_const: false,
+                    mem: None,
+                    gb_func: None,
+                }
             } else {
-                false
+                panic!("What the fuck did you put in unary expression?")
             }
         }
         ASTNode::TernaryExpr(cond, expr1, expr2) => {
-            if !dfs(cond, ctx, scope) {
-                return false;
-            }
-            let cond_ty = ctx.ty.clone();
-            if cond_ty.name == "bool" && cond_ty.dim == 0 {
-                if !dfs(expr1, ctx, scope) {
-                    return false;
-                }
-                let expr1_ty = ctx.ty.clone();
-                if !dfs(expr2, ctx, scope) {
-                    return false;
-                }
-                let expr2_ty = ctx.ty.clone();
-                if expr1_ty == expr2_ty {
-                    ctx.ty = expr1_ty;
-                    true
+            let cond_info = dfs(cond, scope, ctx);
+
+            if cond_info.ty.name == "bool" && cond_info.ty.dim == 0 {
+                let expr1_info = dfs(expr1, scope, ctx);
+                let expr2_info = dfs(expr2, scope, ctx);
+
+                if expr1_info.ty == expr2_info.ty {
+                    ExprInfo {
+                        ty: expr1_info.ty,
+                        is_left: false,
+                        is_const: false,
+                        mem: None,
+                        gb_func: None,
+                    }
                 } else {
-                    false
+                    panic!("TernaryExpr. Expr1 and expr2 type mismatched!")
                 }
             } else {
-                false
+                panic!("TernaryExpr. Cond is not bool type!")
             }
         }
-        ASTNode::Increment(lhs, op) => {
-            if !dfs(lhs, ctx, scope) {
-                return false;
-            }
-            let lhs_ty = ctx.ty.clone();
-            let lhs_left = ctx.is_left;
-            if lhs_left && lhs_ty.name == "int" && lhs_ty.dim == 0 {
-                ctx.is_left = false;
-                true
+        ASTNode::Increment(lhs, _) => {
+            let lhs_info = dfs(lhs, scope, ctx);
+
+            if lhs_info.is_left && lhs_info.ty.name == "int" && lhs_info.ty.dim == 0 {
+                ExprInfo {
+                    ty: lhs_info.ty,
+                    is_left: false,
+                    is_const: false,
+                    mem: None,
+                    gb_func: None,
+                }
             } else {
-                false
+                panic!("Only left-value int can be incremented.")
             }
         }
         ASTNode::ArrayAccess(lhs, inner) => {
-            if !dfs(lhs, ctx, scope) {
-                return false;
-            }
-            let lhs_ty = ctx.ty.clone();
-            if lhs_ty.dim > 0 {
-                if !dfs(inner, ctx, scope) {
-                    return false;
-                }
-                if ctx.ty.name == "int" && ctx.ty.dim == 0 {
-                    ctx.ty = Type { name: lhs_ty.name, dim: lhs_ty.dim - 1 };
-                    ctx.is_left = true;
-                    true
+            let lhs_info = dfs(lhs, scope, ctx);
+            if lhs_info.ty.dim > 0 {
+                let inner_info = dfs(inner, scope, ctx);
+                if inner_info.ty.name == "int" && inner_info.ty.dim == 0 {
+                    ExprInfo {
+                        ty: Type { name: &lhs_info.ty.name, dim: lhs_info.ty.dim - 1 },
+                        is_left: true,
+                        is_const: false,
+                        mem: None,
+                        gb_func: None,
+                    }
                 } else {
-                    false
+                    panic!("ArrayAccess. Inner type is not int.")
                 }
             } else {
-                false
+                panic!("ArrayAccess. LHS is not an array.")
             }
         }
-        ASTNode::MemberAccess(lhs, name) => { true }
-        ASTNode::FuncCall(lhs, params) => { true }
-        ASTNode::IfStmt(cond, if_block, else_block) => { true }
-        ASTNode::ForStmt(expr1, expr2, expr3, block) => { true }
-        ASTNode::WhileStmt(cond, block) => { true }
-        ASTNode::ReturnStmt(ret) => { true }
-        ASTNode::BreakStmt => { true }
-        ASTNode::ContinueStmt => { true }
-        ASTNode::NULL => { true }
-        ASTNode::Int(val) => { true }
-        ASTNode::Str(s) => { true }
-        ASTNode::Bool(b) => { true }
-        ASTNode::ArrConst(ch) => { true }
-        ASTNode::FmtStr(ch) => { true }
-        ASTNode::Ident(name) => { true }
+        ASTNode::MemberAccess(lhs, name) => {
+            let lhs_info = dfs(lhs, scope, ctx);
+            if let Some(members) = scope.find_class(&lhs_info.ty.name) {
+                if let Some(member) = members.get(name) {
+                    match member {
+                        Member::Var(ty) => {
+                            ExprInfo {
+                                ty: ty.clone(),
+                                is_left: true,
+                                is_const: false,
+                                mem: Some((Some(&lhs_info.ty.name), Some(name))),
+                                gb_func: None,
+                            }
+                        }
+                        Member::Func(_, _) => {
+                            ExprInfo {
+                                ty: Type { name: "#FUNC#", dim: 0 },
+                                is_left: false,
+                                is_const: false,
+                                mem: Some((Some(&lhs_info.ty.name), Some(name))),
+                                gb_func: None,
+                            }
+                        }
+                    }
+                } else {
+                    if lhs_info.ty.dim > 0 && *name == "size" {
+                        return ExprInfo {
+                            ty: Type { name: "#FUNC_SIZE#", dim: 0 },
+                            is_left: false,
+                            is_const: false,
+                            mem: None,
+                            gb_func: None,
+                        };
+                    }
+                    panic!("MemberAccess. Member not found.")
+                }
+            } else {
+                panic!("MemberAccess. LHS is not a class.")
+            }
+        }
+        ASTNode::FuncCall(lhs, params) => {
+            // 先找方法，再找全局函数
+            let lhs_info = dfs(lhs, scope, ctx);
+            if lhs_info.ty.name == "#FUNC_SIZE#" {
+                if params.len() != 0 {
+                    panic!("FuncCall. Size function should have no parameters.")
+                }
+                return ExprInfo {
+                    ty: Type { name: "int", dim: 0 },
+                    is_left: false,
+                    is_const: false,
+                    mem: None,
+                    gb_func: None,
+                };
+            }
+            if lhs_info.ty.name != "#FUNC#" {
+                panic!("FuncCall. LHS is not a function.")
+            }
+            // 如果是方法，lhs_info.mem.0是类名
+            if let Some((Some(class_name), Some(mem_name))) = lhs_info.mem {
+                // 显示或隐式地调用类方法
+                if let Some(method) = scope.get_member(class_name, mem_name) {
+                    match method {
+                        Member::Func(ret_ty, args) => {
+                            if args.len() != params.len() {
+                                panic!("FuncCall. Args number mismatched.")
+                            }
+                            let my_type = ret_ty.clone();
+                            for (arg_ty, param) in args.iter().zip(params) {
+                                let param_info = dfs(param, scope, ctx);
+                                if *arg_ty != param_info.ty {
+                                    panic!("FuncCall. Args type mismatched.")
+                                }
+                            }
+                            return ExprInfo {
+                                ty: my_type,
+                                is_left: false,
+                                is_const: false,
+                                mem: None,
+                                gb_func: None,
+                            };
+                        }
+                        _ => { panic!("FuncCall. Member is not a function.") }
+                    }
+                } else {
+                    panic!("FuncCall. Member not found.")
+                }
+            }
+            // 全局函数
+            if let Some((ret_ty, args)) = scope.find_func(&lhs_info.gb_func.unwrap()) {
+                if args.len() != params.len() {
+                    panic!("FuncCall. Args number mismatched.")
+                }
+                let my_type = ret_ty.clone();
+                for (arg_ty, param) in args.iter().zip(params) {
+                    let param_info = dfs(param, scope, ctx);
+                    if *arg_ty != param_info.ty {
+                        panic!("FuncCall. Args type mismatched.")
+                    }
+                }
+                return ExprInfo {
+                    ty: my_type,
+                    is_left: false,
+                    is_const: false,
+                    mem: None,
+                    gb_func: None,
+                };
+            } else {
+                panic!("FuncCall. Function not found.")
+            }
+        }
+        ASTNode::IfStmt(cond, if_block, else_block) => {
+            let cond_info = dfs(cond, scope, ctx);
+            if cond_info.ty.name == "bool" && cond_info.ty.dim == 0 {
+                dfs(if_block, scope, ctx);
+                if let Some(else_block) = else_block {
+                    dfs(else_block, scope, ctx);
+                }
+                ExprInfo::void()
+            } else {
+                panic!("IfStmt. Cond is not bool type!")
+            }
+        }
+        ASTNode::ForStmt(expr1, expr2, expr3, block) => {
+            scope.push(Loop);
+            if let Some(expr1) = expr1 {
+                dfs(expr1, scope, ctx);
+            }
+            if let Some(expr2) = expr2 {
+                let expr2_info = dfs(expr2, scope, ctx);
+                if !(expr2_info.ty.name == "bool" && expr2_info.ty.dim == 0) {
+                    panic!("ForStmt. Expr2 is not bool type!")
+                }
+            }
+            if let Some(expr3) = expr3 {
+                dfs(expr3, scope, ctx);
+            }
+            dfs(block, scope, ctx);
+            scope.pop();
+            ExprInfo::void()
+        }
+        ASTNode::WhileStmt(cond, block) => {
+            scope.push(Loop);
+            if let Some(expr) = cond {
+                let expr_info = dfs(expr, scope, ctx);
+                if !(expr_info.ty.name == "bool" && expr_info.ty.dim == 0) {
+                    panic!("WhileStmt. Cond is not bool type!")
+                }
+            }
+            dfs(block, scope, ctx);
+            scope.pop();
+            ExprInfo::void()
+        }
+        ASTNode::ReturnStmt(ret) => {
+            if !scope.is_in_func() {
+                panic!("FuncCall. Not in function.")
+            }
+            if let Some(expr) = ret {
+                let expr_info = dfs(expr, scope, ctx);
+                ctx.ret_types.push(expr_info.ty);
+            } else {
+                ctx.ret_types.push(Type { name: "void", dim: 0 });
+            }
+            ExprInfo::void()
+        }
+        ASTNode::BreakStmt => {
+            if !scope.is_in_loop() {
+                panic!("BreakStmt. Not in loop.")
+            }
+            ExprInfo::void()
+        }
+        ASTNode::ContinueStmt => {
+            if !scope.is_in_loop() {
+                panic!("ContinueStmt. Not in loop.")
+            }
+            ExprInfo::void()
+        }
+        ASTNode::NULL => {
+            ExprInfo::void()
+        }
+        ASTNode::Int(_) => {
+            ExprInfo {
+                ty: Type { name: "int", dim: 0 },
+                is_left: false,
+                is_const: true,
+                mem: None,
+                gb_func: None,
+            }
+        }
+        ASTNode::Str(_) => {
+            ExprInfo {
+                ty: Type { name: "string", dim: 0 },
+                is_left: false,
+                is_const: true,
+                mem: None,
+                gb_func: None,
+            }
+        }
+        ASTNode::Bool(_) => {
+            ExprInfo {
+                ty: Type { name: "bool", dim: 0 },
+                is_left: false,
+                is_const: true,
+                mem: None,
+                gb_func: None,
+            }
+        }
+        ASTNode::ArrConst(ch) => {
+            let mut my_type_op = None;
+            for node in ch {
+                let const_info = dfs(node, scope, ctx);
+                if my_type_op != None {
+                    let my_type: Type = my_type_op.unwrap();
+                    if my_type.dim != const_info.ty.dim {
+                        panic!("ArrConst. Dim mismatched.")
+                    }
+
+                    if my_type.name == "void" {
+                        my_type_op = Some(const_info.ty);
+                    } else if const_info.ty.name != "void" {
+                        panic!("ArrConst. Type mismatched.")
+                    }
+                } else {
+                    my_type_op = Some(const_info.ty);
+                }
+            }
+            if my_type_op == None {
+                my_type_op = Some(Type { name: "void", dim: 0 });
+            }
+            ExprInfo {
+                ty: Type {
+                    name: &my_type_op.unwrap().name,
+                    dim: &my_type_op.unwrap().dim + 1,
+                },
+                is_left: false,
+                is_const: true,
+                mem: None,
+                gb_func: None,
+            }
+        }
+        ASTNode::FmtStr(_) => {
+            ExprInfo {
+                ty: Type { name: "string", dim: 0 },
+                is_left: false,
+                is_const: true,
+                mem: None,
+                gb_func: None,
+            }
+        }
+        ASTNode::Ident(name) => {
+            if let Some(ty) = scope.find_var(name) {
+                return ExprInfo {
+                    ty: ty.clone(),
+                    is_left: true,
+                    is_const: false,
+                    mem: None,
+                    gb_func: None,
+                };
+            }
+            if let Some(class_name) = scope.get_class_name() {
+                let member = scope.get_member(class_name, name).unwrap();
+                match member {
+                    Member::Func(_, _) => {
+                        return ExprInfo {
+                            ty: Type { name: "#FUNC#", dim: 0 },
+                            is_left: false,
+                            is_const: false,
+                            mem: Some((Some(class_name), Some(name))),
+                            gb_func: None,
+                        }
+                    }
+                    _ => { panic!() }
+                }
+            }
+            if let Some((_, _)) = scope.find_func(name) {
+                return ExprInfo {
+                    ty: Type { name: "#FUNC#", dim: 0 },
+                    is_left: false,
+                    is_const: false,
+                    mem: None,
+                    gb_func: Some(name),
+                };
+            }
+            panic!("Undefined identifier.")
+        }
     }
 }
