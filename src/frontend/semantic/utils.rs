@@ -16,7 +16,6 @@ impl Context<'_> {
 pub struct ExprInfo<'a> {
     pub ty: Type<'a>,
     pub is_left: bool,
-    pub is_const: bool,
     pub mem: Option<(&'a str, &'a str)>, // class name, member name
     pub gb_func: Option<&'a str>, // function name
 }
@@ -24,11 +23,29 @@ pub struct ExprInfo<'a> {
 impl<'a> ExprInfo<'a> {
     pub fn void() -> Self {
         ExprInfo {
-            ty: Type ::void(),
+            ty: Type::void(),
             is_left: false,
-            is_const: false,
             mem: None,
             gb_func: None,
         }
     }
+
+    pub fn normal_var(name: &'a str) -> Self {
+        ExprInfo {
+            ty: Type { name, dim: 0 },
+            is_left: false,
+            mem: None,
+            gb_func: None,
+        }
+    }
+    pub fn normal(ty: Type<'a>) -> Self {
+        ExprInfo {
+            ty,
+            is_left: false,
+            mem: None,
+            gb_func: None,
+        }
+    }
+
+
 }

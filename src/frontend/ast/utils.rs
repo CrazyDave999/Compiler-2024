@@ -39,6 +39,10 @@ impl<'a> Type<'a> {
         Type { name: "void", dim: 0 }
     }
 
+    pub fn null() -> Self {
+        Type { name: "null", dim: 0 }
+    }
+
     pub fn func() -> Self {
         Type { name: "#FUNC#", dim: 0 }
     }

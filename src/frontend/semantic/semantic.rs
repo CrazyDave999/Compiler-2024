@@ -244,13 +244,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
         ASTNode::ThisExpr => {
             match scope.get_class_name() {
                 Some(name) => {
-                    Ok(ExprInfo {
-                        ty: Type { name, dim: 0 },
-                        is_left: false,
-                        is_const: false,
-                        mem: None,
-                        gb_func: None,
-                    })
+                    Ok(ExprInfo ::normal_var(name))
                 }
                 None => return Err("ThisExpr. Not in class.")
             }
@@ -277,7 +271,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 Ok(ExprInfo {
                     ty: my_type,
                     is_left: false,
-                    is_const: false,
+
                     mem: None,
                     gb_func: None,
                 })
@@ -287,13 +281,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
         }
         ASTNode::ClassInit(name) => {
             if let Some(_) = scope.find_class(name) {
-                Ok(ExprInfo {
-                    ty: Type { name, dim: 0 },
-                    is_left: false,
-                    is_const: false,
-                    mem: None,
-                    gb_func: None,
-                })
+                Ok(ExprInfo::normal_var(name))
             } else {
                 return Err("ClassInit. Class not found.");
             }
@@ -316,13 +304,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 }
                 if *name == "==" || *name == "!=" {
                     return if (!lhs_info.ty.is_primitive() && rhs_info.ty.name == "null") || (!rhs_info.ty.is_primitive() && lhs_info.ty.name == "null") {
-                        Ok(ExprInfo {
-                            ty: Type::bool(),
-                            is_left: false,
-                            is_const: lhs_info.is_const && rhs_info.is_const,
-                            mem: None,
-                            gb_func: None,
-                        })
+                        Ok(ExprInfo::normal_var("bool"))
                     } else {
                         Err("BinaryExpr. Type doesn't match.")
                     };
@@ -331,24 +313,17 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             }
             if lhs_info.ty.name == "null" {
                 if *name == "==" || *name == "!=" {
-                    return Ok(ExprInfo {
-                        ty: Type::bool(),
-                        is_left: false,
-                        is_const: false,
-                        mem: None,
-                        gb_func: None,
-                    });
+                    return Ok(ExprInfo::normal_var("bool"));
                 }
                 return Err("BinaryExpr. Null type.");
             }
             // 类型相等
             match *name {
                 "+" => {
-                    if lhs_info.ty.dim == 0 && (lhs_info.ty.name == "int" || lhs_info.ty.name == "string") {
+                    if lhs_info.ty.is_int() || lhs_info.ty.is_string() {
                         Ok(ExprInfo {
                             ty: lhs_info.ty,
                             is_left: false,
-                            is_const: lhs_info.is_const && rhs_info.is_const,
                             mem: None,
                             gb_func: None,
                         })
@@ -361,7 +336,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         Ok(ExprInfo {
                             ty: lhs_info.ty,
                             is_left: false,
-                            is_const: lhs_info.is_const && rhs_info.is_const,
                             mem: None,
                             gb_func: None,
                         })
@@ -371,32 +345,19 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 }
                 "<" | ">" | "<=" | ">=" => {
                     if lhs_info.ty.is_int() || lhs_info.ty.is_string() {
-                        Ok(ExprInfo {
-                            ty: Type::bool(),
-                            is_left: false,
-                            is_const: lhs_info.is_const && rhs_info.is_const,
-                            mem: None,
-                            gb_func: None,
-                        })
+                        Ok(ExprInfo::normal_var("bool"))
                     } else {
                         return Err("What the fuck did you compare?");
                     }
                 }
                 "==" | "!=" => {
-                    Ok(ExprInfo {
-                        ty: Type::bool(),
-                        is_left: false,
-                        is_const: lhs_info.is_const && rhs_info.is_const,
-                        mem: None,
-                        gb_func: None,
-                    })
+                    Ok(ExprInfo::normal_var("bool"))
                 }
                 "&&" | "||" => {
                     if lhs_info.ty.is_bool() {
                         Ok(ExprInfo {
                             ty: Type::bool(),
                             is_left: false,
-                            is_const: lhs_info.is_const && rhs_info.is_const,
                             mem: None,
                             gb_func: None,
                         })
@@ -406,13 +367,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 }
                 "<<" | ">>" | "&" | "|" | "^" => {
                     if lhs_info.ty.is_int() {
-                        Ok(ExprInfo {
-                            ty: lhs_info.ty,
-                            is_left: false,
-                            is_const: lhs_info.is_const && rhs_info.is_const,
-                            mem: None,
-                            gb_func: None,
-                        })
+                        Ok(ExprInfo::normal_var("int"))
                     } else {
                         return Err("What the fuck did you put in logic expr?");
                     }
@@ -437,7 +392,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                             Ok(ExprInfo {
                                 ty: rhs_info.ty,
                                 is_left: true,
-                                is_const: false,
                                 mem: None,
                                 gb_func: None,
                             })
@@ -450,26 +404,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 }
                 "!" => {
                     if rhs_info.ty.name == "bool" && rhs_info.ty.dim == 0 {
-                        Ok(ExprInfo {
-                            ty: rhs_info.ty,
-                            is_left: false,
-                            is_const: false,
-                            mem: None,
-                            gb_func: None,
-                        })
+                        Ok(ExprInfo::normal_var("bool"))
                     } else {
                         Err("Only bool can be !")
                     }
                 }
                 "+" | "-" | "~" => {
                     if rhs_info.ty.is_int() {
-                        Ok(ExprInfo {
-                            ty: rhs_info.ty,
-                            is_left: false,
-                            is_const: false,
-                            mem: None,
-                            gb_func: None,
-                        })
+                        Ok(ExprInfo::normal_var("int"))
                     } else {
                         Err("Only int can be +-~")
                     }
@@ -488,7 +430,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     Ok(ExprInfo {
                         ty: expr1_info.ty,
                         is_left: false,
-                        is_const: false,
+
                         mem: None,
                         gb_func: None,
                     })
@@ -497,21 +439,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         Err("TernaryExpr. Expr1 and expr2 type mismatched!")
                     } else {
                         if expr1_info.ty.name == "null" {
-                            Ok(ExprInfo {
-                                ty: expr2_info.ty,
-                                is_left: false,
-                                is_const: false,
-                                mem: None,
-                                gb_func: None,
-                            })
+                            Ok(ExprInfo::normal(expr2_info.ty))
                         } else if expr2_info.ty.name == "null" {
-                            Ok(ExprInfo {
-                                ty: expr1_info.ty,
-                                is_left: false,
-                                is_const: false,
-                                mem: None,
-                                gb_func: None,
-                            })
+                            Ok(ExprInfo::normal(expr1_info.ty))
                         } else {
                             Err("TernaryExpr. Expr1 and expr2 type mismatched!")
                         }
@@ -525,13 +455,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             let lhs_info = dfs(lhs, scope, ctx)?;
 
             if lhs_info.is_left && lhs_info.ty.is_int() {
-                Ok(ExprInfo {
-                    ty: lhs_info.ty,
-                    is_left: false,
-                    is_const: false,
-                    mem: None,
-                    gb_func: None,
-                })
+                Ok(ExprInfo::normal_var("int"))
             } else {
                 return Err("Only left-value int can be incremented.");
             }
@@ -544,7 +468,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     Ok(ExprInfo {
                         ty: Type { name: &lhs_info.ty.name, dim: lhs_info.ty.dim - 1 },
                         is_left: true,
-                        is_const: false,
+
                         mem: None,
                         gb_func: None,
                     })
@@ -564,7 +488,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                             Ok(ExprInfo {
                                 ty: ty.clone(),
                                 is_left: true,
-                                is_const: false,
+
                                 mem: Some((&lhs_info.ty.name, name)),
                                 gb_func: None,
                             })
@@ -573,7 +497,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                             Ok(ExprInfo {
                                 ty: Type::func(),
                                 is_left: false,
-                                is_const: false,
+
                                 mem: Some((&lhs_info.ty.name, name)),
                                 gb_func: None,
                             })
@@ -584,7 +508,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         return Ok(ExprInfo {
                             ty: Type { name: "#FUNC_SIZE#", dim: 0 },
                             is_left: false,
-                            is_const: false,
                             mem: None,
                             gb_func: None,
                         });
@@ -602,13 +525,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 if params.len() != 0 {
                     return Err("FuncCall. Size function should have no parameters.");
                 }
-                return Ok(ExprInfo {
-                    ty: Type::int(),
-                    is_left: false,
-                    is_const: false,
-                    mem: None,
-                    gb_func: None,
-                });
+                return Ok(ExprInfo::normal_var("int"));
             }
             if lhs_info.ty.name != "#FUNC#" {
                 return Err("FuncCall. LHS is not a function.");
@@ -632,13 +549,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                     }
                                 }
                             }
-                            Ok(ExprInfo {
-                                ty: my_type,
-                                is_left: false,
-                                is_const: false,
-                                mem: None,
-                                gb_func: None,
-                            })
+                            Ok(ExprInfo::normal(my_type))
                         }
                         _ => { Err("MethodCall. Member is not a function.") }
                     }
@@ -660,20 +571,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         }
                     }
                 }
-                Ok(ExprInfo {
-                    ty: my_type,
-                    is_left: false,
-                    is_const: false,
-                    mem: None,
-                    gb_func: None,
-                })
+                Ok(ExprInfo::normal(my_type))
             } else {
                 Err("FuncCall. Function not found.")
             };
         }
         ASTNode::IfStmt(cond, if_block, else_block) => {
             let cond_info = dfs(cond, scope, ctx)?;
-            if cond_info.ty.name == "bool" && cond_info.ty.dim == 0 {
+            if cond_info.ty.is_bool() {
                 dfs(if_block, scope, ctx)?;
                 if let Some(else_block) = else_block {
                     dfs(else_block, scope, ctx)?;
@@ -690,7 +595,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             }
             if let Some(expr2) = expr2 {
                 let expr2_info = dfs(expr2, scope, ctx)?;
-                if !(expr2_info.ty.name == "bool" && expr2_info.ty.dim == 0) {
+                if !expr2_info.ty.is_bool() {
                     return Err("ForStmt. Expr2 is not bool type!");
                 }
             }
@@ -705,7 +610,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             scope.push(ScopeType::Loop);
             if let Some(expr) = cond {
                 let expr_info = dfs(expr, scope, ctx)?;
-                if !(expr_info.ty.is_bool()) {
+                if !expr_info.ty.is_bool() {
                     return Err("WhileStmt. Cond is not bool type!");
                 }
             }
@@ -738,40 +643,16 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             Ok(ExprInfo::void())
         }
         ASTNode::NULL => {
-            Ok(ExprInfo {
-                ty: Type { name: "null", dim: 0 },
-                is_left: false,
-                is_const: true,
-                mem: None,
-                gb_func: None,
-            })
+            Ok(ExprInfo::normal_var("null"))
         }
         ASTNode::Int(_) => {
-            Ok(ExprInfo {
-                ty: Type::int(),
-                is_left: false,
-                is_const: true,
-                mem: None,
-                gb_func: None,
-            })
+            Ok(ExprInfo::normal_var("int"))
         }
         ASTNode::Str(_) => {
-            Ok(ExprInfo {
-                ty: Type::string(),
-                is_left: false,
-                is_const: true,
-                mem: None,
-                gb_func: None,
-            })
+            Ok(ExprInfo::normal_var("string"))
         }
         ASTNode::Bool(_) => {
-            Ok(ExprInfo {
-                ty: Type::bool(),
-                is_left: false,
-                is_const: true,
-                mem: None,
-                gb_func: None,
-            })
+            Ok(ExprInfo::normal_var("bool"))
         }
         ASTNode::ArrConst(ch) => {
             let mut my_type_op = None;
@@ -803,7 +684,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     dim: &my_type_op.unwrap().dim + 1,
                 },
                 is_left: false,
-                is_const: true,
+
                 mem: None,
                 gb_func: None,
             })
@@ -819,13 +700,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     _ => return Err("FmtStr. Type not supported.")
                 }
             }
-            Ok(ExprInfo {
-                ty: Type::string(),
-                is_left: false,
-                is_const: false,
-                mem: None,
-                gb_func: None,
-            })
+            Ok(ExprInfo::normal_var("string"))
         }
         ASTNode::Ident(name) => {
             if let Some(res) = scope.find_ident(name) {
