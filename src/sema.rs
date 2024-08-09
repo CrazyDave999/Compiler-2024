@@ -125,7 +125,7 @@ impl<'a> Scope<'a> {
     }
 
     pub fn find_ident(&self, name: &'a str) -> Option<ExprInfo<'a>> {
-        for layer in self.layers.iter().rev(){
+        for layer in self.layers.iter().rev() {
             if let Some(ty) = layer.var.get(name) {
                 return Some(ExprInfo {
                     ty: ty.clone(),
@@ -219,7 +219,20 @@ pub fn check(ast: &ASTNode) {
 fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> ExprInfo<'a> {
     match ast {
         ASTNode::Root(ch) => {
-            // 先收集所有的函数定义及类定义，加入作用域
+            // 先收集类名
+            for node in ch {
+                match node {
+                    ASTNode::ClassDef(name, _) => {
+                        if let Some(_) = scope.find_class(name) {
+                            panic!("Duplicate class definition");
+                        }
+                        scope.insert_class(name, HashMap::new());
+                    }
+                    _ => {}
+                }
+            }
+
+
             let mut main = false;
             for node in ch {
                 match node {
@@ -239,16 +252,22 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                                 panic!("Main function should have no arguments.")
                             }
                         }
-                        let args: Vec<Type> = args.iter().map(|(ty, _)| ty.clone()).collect();
+                        let args: Vec<Type> = args.iter().map(|(ty, _)| {
+                            if ty.name == "void" {
+                                panic!("Cannot declare void params!")
+                            }
+                            if scope.find_class(ty.name).is_none() {
+                                panic!("Param type not found.")
+                            }
+                            ty.clone()
+                        }).collect();
                         scope.insert_func(name, ty, &args);
                     }
                     ASTNode::ClassDef(name, ch) => {
                         if let Some(_) = scope.find_gb_func(name) {
                             panic!("Class name conflict with function name");
                         }
-                        if let Some(_) = scope.find_class(name) {
-                            panic!("Duplicate class definition");
-                        }
+
                         let mut members = HashMap::new();
                         let mut constr = false;
                         for mem in ch {
@@ -263,6 +282,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                                 ASTNode::VarDecl(ty, ch) => {
                                     if ty.name == "void" {
                                         panic!("Cannot declare void vars!")
+                                    }
+                                    if scope.find_class(ty.name).is_none() {
+                                        panic!("Member type not found.")
                                     }
                                     for (name, op) in ch {
                                         if members.contains_key(name) {
@@ -281,7 +303,15 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                                         // 重复定义
                                         panic!("Method name conflict with member or function");
                                     }
-                                    let args = args.iter().map(|(ty, _)| ty.clone()).collect();
+                                    let args = args.iter().map(|(ty, _)| {
+                                        if ty.name == "void" {
+                                            panic!("Cannot declare void params!")
+                                        }
+                                        if scope.find_class(ty.name).is_none() {
+                                            panic!("Param type not found.")
+                                        }
+                                        ty.clone()
+                                    }).collect();
                                     members.insert(name, Member::Func(ty.clone(), args));
                                 }
                                 _ => { panic!("What the fuck is the class?") }
@@ -295,6 +325,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             if !main {
                 panic!("No main function!")
             }
+
             for node in ch {
                 dfs(node, scope, ctx);
             }
@@ -303,6 +334,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
         ASTNode::VarDecl(ty, ch) => {
             if ty.name == "void" {
                 panic!("Cannot declare void vars!")
+            }
+            if scope.find_class(ty.name).is_none() {
+                panic!("Var type not found!")
             }
             for (name, op) in ch {
                 if let Some(_) = scope.find_gb_func(name) {
@@ -314,9 +348,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 }
                 if let Some(expr) = op {
                     let expr_info = dfs(expr, scope, ctx);
-                    if *ty != expr_info.ty && expr_info.ty.name != "null" {
+                    if *ty != expr_info.ty {
                         // 声明类型和初始化表达式类型不匹配
-                        panic!("VarDecl. Type doesn't match.")
+                        if ty.is_primitive() || expr_info.ty.name != "null" {
+                            if !(ty.dim > 0 && expr_info.ty.name == "{}") {
+                                panic!("VarDecl. Type doesn't match.")
+                            }
+                        }
                     }
                 }
                 scope.insert_var(name, ty.clone());
@@ -432,7 +470,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
 
                 if let Some(expr) = op {
                     let expr_info = dfs(expr, scope, ctx);
-                    if my_type != expr_info.ty {
+                    if my_type != expr_info.ty && expr_info.ty.name != "{}" {
                         panic!("ArrayInit. Type doesn't match.")
                     }
                 }
@@ -938,23 +976,25 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             let mut my_type_op = None;
             for node in ch {
                 let const_info = dfs(node, scope, ctx);
-                if my_type_op != None {
+                if !my_type_op.is_none() {
                     let my_type: Type = my_type_op.unwrap();
-                    if my_type.dim != const_info.ty.dim {
+                    if my_type.dim != const_info.ty.dim && const_info.ty.name != "{}" {
                         panic!("ArrConst. Dim mismatched.")
                     }
 
-                    if my_type.name == "null" {
-                        my_type_op = Some(const_info.ty);
-                    } else if const_info.ty.name != "null" {
-                        panic!("ArrConst. Type mismatched.")
+                    if my_type != const_info.ty {
+                        if my_type.name == "{}" {
+                            my_type_op = Some(const_info.ty);
+                        } else if const_info.ty.name != "{}" {
+                            panic!("ArrConst. Type mismatched.")
+                        }
                     }
                 } else {
                     my_type_op = Some(const_info.ty);
                 }
             }
-            if my_type_op == None {
-                my_type_op = Some(Type { name: "null", dim: 0 });
+            if my_type_op.is_none() {
+                my_type_op = Some(Type { name: "{}", dim: 0 });
             }
             ExprInfo {
                 ty: Type {
@@ -967,11 +1007,21 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 gb_func: None,
             }
         }
-        ASTNode::FmtStr(_) => {
+        ASTNode::FmtStr(ch) => {
+            for node in ch {
+                let info = dfs(node, scope, ctx);
+                if info.ty.dim != 0 {
+                    panic!("FmtStr. Type not supported.")
+                }
+                match info.ty.name {
+                    "int" | "string" | "bool" => {}
+                    _ => panic!("FmtStr. Type not supported.")
+                }
+            }
             ExprInfo {
                 ty: Type { name: "string", dim: 0 },
                 is_left: false,
-                is_const: true,
+                is_const: false,
                 mem: None,
                 gb_func: None,
             }

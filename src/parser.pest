@@ -18,7 +18,7 @@ arr_const = { "{" ~ CONST? ~ ( "," ~ CONST )* ~ "}" }
 new_expr = { "new" ~ ( array_init | class_init ) }
 
 class_init = { ( user_type | builtin_type ) ~ ( "(" ~ ")" )? }
-array_init = { ( user_type | builtin_type ) ~ ( ( "[" ~ expr ~ "]" )+ ~ blank_bracket* ) | ( blank_bracket* ~ arr_const ) }
+array_init = { ( user_type | builtin_type ) ~ ( ( ( "[" ~ expr ~ "]" )+ ~ blank_bracket* ) | ( blank_bracket* ~ arr_const ) ) }
 blank_bracket = { "[" ~ "]" }
 
 test = { or_test }
