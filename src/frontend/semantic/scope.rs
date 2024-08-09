@@ -95,7 +95,7 @@ impl<'a> Scope<'a> {
                     is_left: true,
                     is_const: false,
                     mem: if let ScopeType::Class(class_name) = layer.ty {
-                        Some((Some(class_name), Some(name)))
+                        Some((class_name, name))
                     } else {
                         None
                     },
@@ -108,7 +108,7 @@ impl<'a> Scope<'a> {
                     is_left: false,
                     is_const: false,
                     mem: if let ScopeType::Class(class_name) = layer.ty {
-                        Some((Some(class_name), Some(name)))
+                        Some((class_name, name))
                     } else {
                         None
                     },

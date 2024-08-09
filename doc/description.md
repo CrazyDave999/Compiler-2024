@@ -20,3 +20,5 @@ Some questions:
 - I am still not clear about how exactly can I produce the IR through traversing the AST nodes. It seems that I should
   design format string patterns for all possible conditions and print them directly.
 - I'm not familiar with `Pest`!
+
+# Week 6

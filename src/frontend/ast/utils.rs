@@ -40,6 +40,6 @@ impl<'a> Type<'a> {
     }
 
     pub fn func() -> Self {
-        Type { name: "#func#", dim: 0 }
+        Type { name: "#FUNC#", dim: 0 }
     }
 }

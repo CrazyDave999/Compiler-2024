@@ -17,14 +17,14 @@ pub struct ExprInfo<'a> {
     pub ty: Type<'a>,
     pub is_left: bool,
     pub is_const: bool,
-    pub mem: Option<(Option<&'a str>, Option<&'a str>)>, // class name, member name
+    pub mem: Option<(&'a str, &'a str)>, // class name, member name
     pub gb_func: Option<&'a str>, // function name
 }
 
 impl<'a> ExprInfo<'a> {
     pub fn void() -> Self {
         ExprInfo {
-            ty: Type { name: "void", dim: 0 },
+            ty: Type ::void(),
             is_left: false,
             is_const: false,
             mem: None,

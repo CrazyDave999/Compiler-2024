@@ -5,7 +5,7 @@ use super::utils::Type;
 use super::Rule;
 
 
-pub fn build(pair: Pair<Rule>) -> ASTNode {
+pub fn visit_file(pair: Pair<Rule>) -> ASTNode {
     let mut ast = vec![];
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {

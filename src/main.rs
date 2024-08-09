@@ -16,17 +16,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     io::stdin().read_to_string(&mut input)?;
 
 
-    let pairs_res = ast::MxParser::parse(ast::Rule::file, &input);
-    match pairs_res {
-        Ok(pairs) => {
-            let ast = ast::build(pairs.into_iter().next().unwrap());
-            visualize::print_tree(&ast);
-            semantic::check(&ast);
-        }
-        Err(e) => {
-            panic!("{}", e)
-        }
-    }
+    let pairs = ast::MxParser::parse(ast::Rule::file, &input)?;
+
+
+    let ast = ast::build_tree(pairs.into_iter().next().unwrap());
+    visualize::print_tree(&ast);
+    semantic::check(&ast)?;
     Ok(())
 }
 
