@@ -1,5 +1,7 @@
 use std::fmt;
-use crate::ast::{ASTNode, Type};
+use crate::frontend::ast::ASTNode;
+use crate::frontend::ast::Type;
+
 
 impl fmt::Display for Type<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -35,7 +37,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print!("{} {}\n", ty, name);
                 if let Some(expr) = op {
                     print_ast(expr, indent + 2);
-                }else{
+                } else {
                     show_indent(indent + 2);
                     print!("NULL\n");
                 }
@@ -96,8 +98,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                     print_ast(size, indent + 2);
                     show_indent(indent + 2);
                     print!(",\n");
-                }
-                else{
+                } else {
                     show_indent(indent + 2);
                     print!("NULL\n");
                 }
@@ -210,7 +211,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("Expr1:\n");
             if let Some(expr1) = expr1 {
                 print_ast(expr1, indent + 2);
-            }else {
+            } else {
                 show_indent(indent + 2);
                 print!("NULL\n");
             }
@@ -218,7 +219,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("Expr2:\n");
             if let Some(expr2) = expr2 {
                 print_ast(expr2, indent + 2);
-            }else {
+            } else {
                 show_indent(indent + 2);
                 print!("NULL\n");
             }
@@ -227,7 +228,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("Expr3:\n");
             if let Some(expr3) = expr3 {
                 print_ast(expr3, indent + 2);
-            }else {
+            } else {
                 show_indent(indent + 2);
                 print!("NULL\n");
             }
@@ -238,7 +239,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("WhileStmt\n");
             if let Some(cond) = cond {
                 print_ast(cond, indent + 2);
-            }else {
+            } else {
                 show_indent(indent + 2);
                 print!("NULL\n");
             }
@@ -249,7 +250,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("ReturnStmt\n");
             if let Some(ret) = ret {
                 print_ast(ret, indent + 2);
-            }else {
+            } else {
                 show_indent(indent + 2);
                 print!("NULL\n");
             }

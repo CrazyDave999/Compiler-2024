@@ -1,214 +1,10 @@
 use std::collections::HashMap;
 use std::panic;
-use crate::ast::{ASTNode, Type};
-use crate::sema::ScopeType::{Class, Func, Global, Loop};
+use super::ASTNode;
+use super::Type;
+use super::utils::{ExprInfo, Context};
+use super::scope::{Scope, ScopeType, Member};
 
-struct Context<'a> {
-    ret_types: Vec<Type<'a>>,
-}
-
-impl Context<'_> {
-    pub fn new() -> Self {
-        Context {
-            ret_types: vec![],
-        }
-    }
-}
-
-#[derive(PartialEq)]
-struct ExprInfo<'a> {
-    ty: Type<'a>,
-    is_left: bool,
-    is_const: bool,
-    mem: Option<(Option<&'a str>, Option<&'a str>)>, // class name, member name
-    gb_func: Option<&'a str>, // function name
-}
-
-impl<'a> ExprInfo<'a> {
-    pub fn void() -> Self {
-        ExprInfo {
-            ty: Type { name: "void", dim: 0 },
-            is_left: false,
-            is_const: false,
-            mem: None,
-            gb_func: None,
-        }
-    }
-}
-
-#[derive(Clone)]
-enum Member<'a> {
-    Var(Type<'a>),
-    Func(Type<'a>, Vec<Type<'a>>),
-}
-enum ScopeType<'a> {
-    Global,
-    Func,
-    Class(&'a str),
-    Block,
-    Loop,
-}
-struct ScopeLayer<'a> {
-    ty: ScopeType<'a>,
-    var: HashMap<&'a str, Type<'a>>, // type
-    func: HashMap<&'a str, (Type<'a>, Vec<Type<'a>>)>, // (return type, args)
-    class: HashMap<&'a str, HashMap<&'a str, Member<'a>>>, // members
-}
-
-impl<'a> ScopeLayer<'a> {
-    pub fn new(scope_type: ScopeType<'a>) -> Self {
-        ScopeLayer {
-            ty: scope_type,
-            var: HashMap::new(),
-            func: HashMap::new(),
-            class: HashMap::new(),
-        }
-    }
-}
-
-struct Scope<'a> {
-    layers: Vec<ScopeLayer<'a>>,
-}
-// 找一个变量，先找类成员，再找当前作用域
-impl<'a> Scope<'a> {
-    pub fn new() -> Self {
-        let mut scope = Scope {
-            layers: vec![ScopeLayer::new(Global)],
-        };
-
-        // builtin types
-        scope.insert_class("int", HashMap::new());
-        scope.insert_class("bool", HashMap::new());
-
-        let mut str_hash_map = HashMap::new();
-        str_hash_map.insert("length", Member::Func(Type { name: "int", dim: 0 }, vec![]));
-        str_hash_map.insert("substring", Member::Func(Type { name: "string", dim: 0 }, vec![Type { name: "int", dim: 0 }, Type { name: "int", dim: 0 }]));
-        str_hash_map.insert("parseInt", Member::Func(Type { name: "int", dim: 0 }, vec![]));
-        str_hash_map.insert("ord", Member::Func(Type { name: "int", dim: 0 }, vec![Type { name: "int", dim: 0 }]));
-
-        scope.insert_class("string", str_hash_map);
-
-        // builtin functions
-        scope.insert_func("print", &Type { name: "void", dim: 0 }, &vec![Type { name: "string", dim: 0 }]);
-        scope.insert_func("println", &Type { name: "void", dim: 0 }, &vec![Type { name: "string", dim: 0 }]);
-        scope.insert_func("printInt", &Type { name: "void", dim: 0 }, &vec![Type { name: "int", dim: 0 }]);
-        scope.insert_func("printlnInt", &Type { name: "void", dim: 0 }, &vec![Type { name: "int", dim: 0 }]);
-        scope.insert_func("getString", &Type { name: "string", dim: 0 }, &vec![]);
-        scope.insert_func("getInt", &Type { name: "int", dim: 0 }, &vec![]);
-        scope.insert_func("toString", &Type { name: "string", dim: 0 }, &vec![Type { name: "int", dim: 0 }]);
-        scope
-    }
-    pub fn push(&mut self, ty: ScopeType<'a>) {
-        self.layers.push(ScopeLayer::new(ty));
-    }
-    pub fn pop(&mut self) {
-        self.layers.pop();
-    }
-    // pub fn index(&self) -> usize {
-    //     self.layers.len() - 1
-    // }
-
-    fn top(&mut self) -> &mut ScopeLayer<'a> {
-        self.layers.last_mut().unwrap()
-    }
-
-    pub fn insert_var(&mut self, name: &'a str, ty: Type<'a>) {
-        self.top().var.insert(name, ty);
-    }
-
-    pub fn insert_func(&mut self, name: &'a str, ty: &Type<'a>, args: &Vec<Type<'a>>) {
-        self.top().func.insert(name, (ty.clone(), args.clone()));
-    }
-
-    pub fn insert_class(&mut self, name: &'a str, members: HashMap<&'a str, Member<'a>>) {
-        self.top().class.insert(name, members.clone());
-    }
-
-    pub fn find_ident(&self, name: &'a str) -> Option<ExprInfo<'a>> {
-        for layer in self.layers.iter().rev() {
-            if let Some(ty) = layer.var.get(name) {
-                return Some(ExprInfo {
-                    ty: ty.clone(),
-                    is_left: true,
-                    is_const: false,
-                    mem: if let Class(class_name) = layer.ty {
-                        Some((Some(class_name), Some(name)))
-                    } else {
-                        None
-                    },
-                    gb_func: None,
-                });
-            }
-            if let Some(_) = layer.func.get(name) {
-                return Some(ExprInfo {
-                    ty: Type {
-                        name: "#FUNC#",
-                        dim: 0,
-                    },
-                    is_left: false,
-                    is_const: false,
-                    mem: if let Class(class_name) = layer.ty {
-                        Some((Some(class_name), Some(name)))
-                    } else {
-                        None
-                    },
-                    gb_func: if let Global = layer.ty {
-                        Some(name)
-                    } else {
-                        None
-                    },
-                });
-            }
-        }
-        None
-    }
-
-    pub fn find_var_top(&mut self, name: &'a str) -> Option<Type<'a>> {
-        self.top().var.get(name).cloned()
-    }
-
-    pub fn find_gb_func(&self, name: &'a str) -> Option<(Type<'a>, Vec<Type<'a>>)> {
-        self.layers[0].func.get(name).cloned()
-    }
-
-    pub fn find_class(&self, name: &'a str) -> Option<&HashMap<&'a str, Member<'a>>> {
-        self.layers[0].class.get(name)
-    }
-    pub fn get_member(&self, class_name: &'a str, mem_name: &'a str) -> Option<Member<'a>> {
-        if let Some(members) = self.find_class(class_name) {
-            members.get(mem_name).cloned()
-        } else {
-            None
-        }
-    }
-
-    pub fn get_class_name(&self) -> Option<&'a str> {
-        if self.layers.len() < 1 {
-            return None;
-        }
-        match self.layers[1].ty {
-            Class(name) => Some(name),
-            _ => None
-        }
-    }
-
-    pub fn is_in_func(&self) -> bool {
-        for layer in self.layers.iter().rev() {
-            if let Func = layer.ty {
-                return true;
-            }
-        }
-        false
-    }
-    pub fn is_in_loop(&self) -> bool {
-        for layer in self.layers.iter().rev() {
-            if let Loop = layer.ty {
-                return true;
-            }
-        }
-        false
-    }
-}
 
 pub fn check(ast: &ASTNode) {
     let mut scope = Scope::new();
@@ -363,7 +159,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
         }
         ASTNode::FuncDef(ty, name, args, block) => {
             // 考虑形参可以与函数重名
-            scope.push(Func);
+            scope.push(ScopeType::Func);
             for (ty, name) in args {
                 scope.insert_var(name, ty.clone());
             }
@@ -392,7 +188,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             } else {
                 panic!("ConstrDef. Not in class.")
             }
-            scope.push(Func);
+            scope.push(ScopeType::Func);
             dfs(block, scope, ctx);
             for ret_ty in ctx.ret_types.iter() {
                 if ret_ty.name != "void" {
@@ -404,7 +200,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             ExprInfo::void()
         }
         ASTNode::ClassDef(name, block) => {
-            scope.push(Class(name));
+            scope.push(ScopeType::Class(name));
             for mem in block {
                 match mem {
                     ASTNode::VarDecl(ty, ch) => {
@@ -462,7 +258,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 for node in sizes {
                     if let Some(expr) = node {
                         let expr_info = dfs(expr, scope, ctx);
-                        if expr_info.ty.name != "int" || expr_info.ty.dim != 0 {
+                        if !expr_info.ty.is_int() {
                             panic!("ArrayInit. Size is not int.")
                         }
                     }
@@ -517,7 +313,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 if *name == "==" || *name == "!=" {
                     if (!lhs_info.ty.is_primitive() && rhs_info.ty.name == "null") || (!rhs_info.ty.is_primitive() && lhs_info.ty.name == "null") {
                         return ExprInfo {
-                            ty: Type { name: "bool", dim: 0 },
+                            ty: Type::bool(),
                             is_left: false,
                             is_const: lhs_info.is_const && rhs_info.is_const,
                             mem: None,
@@ -532,7 +328,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             if lhs_info.ty.name == "null" {
                 if *name == "==" || *name == "!=" {
                     return ExprInfo {
-                        ty: Type { name: "bool", dim: 0 },
+                        ty: Type::bool(),
                         is_left: false,
                         is_const: false,
                         mem: None,
@@ -570,9 +366,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                     }
                 }
                 "<" | ">" | "<=" | ">=" => {
-                    if lhs_info.ty.dim == 0 && (lhs_info.ty.name == "int" || lhs_info.ty.name == "string") {
+                    if lhs_info.ty.is_int() || lhs_info.ty.is_string() {
                         ExprInfo {
-                            ty: Type { name: "bool", dim: 0 },
+                            ty: Type::bool(),
                             is_left: false,
                             is_const: lhs_info.is_const && rhs_info.is_const,
                             mem: None,
@@ -584,7 +380,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 }
                 "==" | "!=" => {
                     ExprInfo {
-                        ty: Type { name: "bool", dim: 0 },
+                        ty: Type::bool(),
                         is_left: false,
                         is_const: lhs_info.is_const && rhs_info.is_const,
                         mem: None,
@@ -592,9 +388,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                     }
                 }
                 "&&" | "||" => {
-                    if lhs_info.ty.dim == 0 && lhs_info.ty.name == "bool" {
+                    if lhs_info.ty.is_bool() {
                         ExprInfo {
-                            ty: Type { name: "bool", dim: 0 },
+                            ty: Type::bool(),
                             is_left: false,
                             is_const: lhs_info.is_const && rhs_info.is_const,
                             mem: None,
@@ -605,7 +401,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                     }
                 }
                 "<<" | ">>" | "&" | "|" | "^" => {
-                    if lhs_info.ty.dim == 0 && lhs_info.ty.name == "int" {
+                    if lhs_info.ty.is_int() {
                         ExprInfo {
                             ty: lhs_info.ty,
                             is_left: false,
@@ -633,7 +429,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             match *name {
                 "++" | "--" => {
                     if rhs_info.is_left {
-                        if rhs_info.ty.name == "int" && rhs_info.ty.dim == 0 {
+                        if rhs_info.ty.is_int() {
                             return ExprInfo {
                                 ty: rhs_info.ty,
                                 is_left: true,
@@ -662,7 +458,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                     }
                 }
                 "+" | "-" | "~" => {
-                    if rhs_info.ty.name == "int" && rhs_info.ty.dim == 0 {
+                    if rhs_info.ty.is_int() {
                         return ExprInfo {
                             ty: rhs_info.ty,
                             is_left: false,
@@ -724,7 +520,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
         ASTNode::Increment(lhs, _) => {
             let lhs_info = dfs(lhs, scope, ctx);
 
-            if lhs_info.is_left && lhs_info.ty.name == "int" && lhs_info.ty.dim == 0 {
+            if lhs_info.is_left && lhs_info.ty.is_int() {
                 ExprInfo {
                     ty: lhs_info.ty,
                     is_left: false,
@@ -740,7 +536,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             let lhs_info = dfs(lhs, scope, ctx);
             if lhs_info.ty.dim > 0 {
                 let inner_info = dfs(inner, scope, ctx);
-                if inner_info.ty.name == "int" && inner_info.ty.dim == 0 {
+                if inner_info.ty.is_int() {
                     ExprInfo {
                         ty: Type { name: &lhs_info.ty.name, dim: lhs_info.ty.dim - 1 },
                         is_left: true,
@@ -771,7 +567,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                         }
                         Member::Func(_, _) => {
                             ExprInfo {
-                                ty: Type { name: "#FUNC#", dim: 0 },
+                                ty: Type::func(),
                                 is_left: false,
                                 is_const: false,
                                 mem: Some((Some(&lhs_info.ty.name), Some(name))),
@@ -803,7 +599,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                     panic!("FuncCall. Size function should have no parameters.")
                 }
                 return ExprInfo {
-                    ty: Type { name: "int", dim: 0 },
+                    ty: Type::int(),
                     is_left: false,
                     is_const: false,
                     mem: None,
@@ -813,6 +609,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             if lhs_info.ty.name != "#FUNC#" {
                 panic!("FuncCall. LHS is not a function.")
             }
+
             // 如果是方法，lhs_info.mem.0是类名
             if let Some((Some(class_name), Some(mem_name))) = lhs_info.mem {
                 // 显示或隐式地调用类方法
@@ -883,7 +680,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             }
         }
         ASTNode::ForStmt(expr1, expr2, expr3, block) => {
-            scope.push(Loop);
+            scope.push(ScopeType::Loop);
             if let Some(expr1) = expr1 {
                 dfs(expr1, scope, ctx);
             }
@@ -901,10 +698,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             ExprInfo::void()
         }
         ASTNode::WhileStmt(cond, block) => {
-            scope.push(Loop);
+            scope.push(ScopeType::Loop);
             if let Some(expr) = cond {
                 let expr_info = dfs(expr, scope, ctx);
-                if !(expr_info.ty.name == "bool" && expr_info.ty.dim == 0) {
+                if !(expr_info.ty.is_bool()) {
                     panic!("WhileStmt. Cond is not bool type!")
                 }
             }
@@ -920,7 +717,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 let expr_info = dfs(expr, scope, ctx);
                 ctx.ret_types.push(expr_info.ty);
             } else {
-                ctx.ret_types.push(Type { name: "void", dim: 0 });
+                ctx.ret_types.push(Type::void());
             }
             ExprInfo::void()
         }
@@ -947,7 +744,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
         }
         ASTNode::Int(_) => {
             ExprInfo {
-                ty: Type { name: "int", dim: 0 },
+                ty: Type::int(),
                 is_left: false,
                 is_const: true,
                 mem: None,
@@ -956,7 +753,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
         }
         ASTNode::Str(_) => {
             ExprInfo {
-                ty: Type { name: "string", dim: 0 },
+                ty: Type::string(),
                 is_left: false,
                 is_const: true,
                 mem: None,
@@ -965,7 +762,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
         }
         ASTNode::Bool(_) => {
             ExprInfo {
-                ty: Type { name: "bool", dim: 0 },
+                ty: Type::bool(),
                 is_left: false,
                 is_const: true,
                 mem: None,
@@ -1019,7 +816,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
                 }
             }
             ExprInfo {
-                ty: Type { name: "string", dim: 0 },
+                ty: Type::string(),
                 is_left: false,
                 is_const: false,
                 mem: None,
@@ -1030,32 +827,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> E
             if let Some(res) = scope.find_ident(name) {
                 return res;
             }
-            // if let Some(class_name) = scope.get_class_name() {
-            //     // 在类作用域内，考虑方法
-            //     if let Some(member) = scope.get_member(class_name, name) {
-            //         match member {
-            //             Member::Func(_, _) => {
-            //                 return ExprInfo {
-            //                     ty: Type { name: "#FUNC#", dim: 0 },
-            //                     is_left: false,
-            //                     is_const: false,
-            //                     mem: Some((Some(class_name), Some(name))),
-            //                     gb_func: None,
-            //                 }
-            //             }
-            //             _ => { panic!() }
-            //         }
-            //     }
-            // }
-            // if let Some((_, _)) = scope.find_gb_func(name) {
-            //     return ExprInfo {
-            //         ty: Type { name: "#FUNC#", dim: 0 },
-            //         is_left: false,
-            //         is_const: false,
-            //         mem: None,
-            //         gb_func: Some(name),
-            //     };
-            // }
             panic!("Undefined identifier.")
         }
     }
