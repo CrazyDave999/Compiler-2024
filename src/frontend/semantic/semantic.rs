@@ -20,7 +20,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 match node {
                     ASTNode::ClassDef(name, _) => {
                         if let Some(_) = scope.find_class(name) {
-                            return Err("Multiple definition");
+                            return Err("Multiple Definitions");
                         }
                         scope.insert_class(name, HashMap::new());
                     }
@@ -33,15 +33,15 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 match node {
                     ASTNode::FuncDef(ty, name, args, _) => {
                         if let Some(_) = scope.find_ident(name) {
-                            return Err("Multiple definition");
+                            return Err("Multiple definitions");
                         }
                         if let Some(_) = scope.find_class(name) {
-                            return Err("Function name conflict with class name");
+                            return Err("Multiple definitions");
                         }
                         if *name == "main" {
                             main = true;
                             if !ty.is_int() {
-                                return Err("Main function should return int.");
+                                return Err("Invalid Type");
                             }
                             if !args.is_empty() {
                                 return Err("Main function should have no arguments.");
@@ -51,10 +51,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         let mut my_args = vec![];
                         for (ty, _) in args {
                             if ty.is_void() {
-                                return Err("Cannot declare void params!");
+                                return Err("Invalid Type");
                             }
                             if scope.find_class(ty.name).is_none() {
-                                return Err("Param type not found.");
+                                return Err("Undefined Identifier");
                             }
                             my_args.push(ty.clone());
                         }
@@ -64,7 +64,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     ASTNode::ClassDef(name, ch) => {
                         match scope.find_ident_top(name) {
                             Some(Member::Func(_, _)) => {
-                                return Err("Class name conflict with function name");
+                                return Err("Multiple Definitions");
                             }
                             _ => {}
                         }
@@ -76,21 +76,21 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                 ASTNode::ConstrDef(_, _) => {
                                     if constr {
                                         // Two construct function
-                                        return Err("Two construct function");
+                                        return Err("Multiple Definitions");
                                     }
                                     constr = true;
                                 }
                                 ASTNode::VarDecl(ty, ch) => {
                                     if ty.is_void() {
-                                        return Err("Cannot declare void vars!");
+                                        return Err("Invalid Type");
                                     }
                                     if scope.find_class(ty.name).is_none() {
-                                        return Err("Member type not found.");
+                                        return Err("Undefined Identifier");
                                     }
                                     for (name, op) in ch {
                                         if members.contains_key(name) {
                                             // 重复定义
-                                            return Err("Duplicate var definition");
+                                            return Err("Multiple Definitions");
                                         }
                                         if let Some(_) = op {
                                             // 类成员默认初始化表达式为非法
@@ -102,22 +102,22 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                 ASTNode::FuncDef(ty, name, args, _) => {
                                     if members.contains_key(name) {
                                         // 重复定义
-                                        return Err("Multiple Definition");
+                                        return Err("Multiple Definitions");
                                     }
                                     let mut my_args = vec![];
                                     for (ty, _) in args {
                                         if ty.is_void() {
-                                            return Err("Cannot declare void params!");
+                                            return Err("Invalid Type");
                                         }
                                         if scope.find_class(ty.name).is_none() {
-                                            return Err("Param type not found.");
+                                            return Err("Undefined Identifier");
                                         }
                                         my_args.push(ty.clone());
                                     }
 
                                     members.insert(*name, Member::Func(ty.clone(), my_args));
                                 }
-                                _ => { return Err("What the fuck is the class?") }
+                                _ => { return Err("Invalid Member") }
                             }
                         }
                         scope.insert_class(name, members);
@@ -136,14 +136,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
         }
         ASTNode::VarDecl(ty, ch) => {
             if ty.is_void() {
-                return Err("Cannot declare void vars!");
+                return Err("Invalid Type");
             }
             if scope.find_class(ty.name).is_none() {
-                return Err("Var type not found!");
+                return Err("Undefined Identifier");
             }
             for (name, op) in ch {
                 if let Some(_) = scope.find_ident_top(name) {
-                    return Err("Multiple definition");
+                    return Err("Multiple Definitions");
                 }
 
                 if let Some(expr) = op {
@@ -152,7 +152,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         // 声明类型和初始化表达式类型不匹配
                         if ty.is_primitive() || !expr_info.ty.is_null() {
                             if !(ty.dim > 0 && expr_info.ty.name == "{}") {
-                                return Err("VarDecl. Type doesn't match.");
+                                return Err("Type Mismatch");
                             }
                         }
                     }
@@ -169,13 +169,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             }
             dfs(block, scope, ctx)?;
             if !ty.is_void() && ctx.ret_types.is_empty() && *name != "main" {
-                return Err("FuncDef. Non void function should have return value.");
+                return Err("Missing Return Statement");
             }
             for ret_ty in ctx.ret_types.iter() {
                 if *ret_ty != *ty {
                     // 函数返回类型和返回表达式类型不匹配
                     if ty.is_primitive() || !ret_ty.is_null() {
-                        return Err("FuncDef. Type doesn't match.");
+                        return Err("Type Mismatch");
                     }
                 }
             }
@@ -187,16 +187,16 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             if let Some(class_name) = scope.get_class_name() {
                 if **name != *class_name {
                     // 构造函数名和类名不匹配
-                    return Err("ConstrDef. Name doesn't match.");
+                    return Err("Invalid Identifier");
                 }
             } else {
-                return Err("ConstrDef. Not in class.");
+                return Err("Invalid Identifier");
             }
             scope.push(ScopeType::Func);
             dfs(block, scope, ctx)?;
             for ret_ty in ctx.ret_types.iter() {
                 if !ret_ty.is_void() {
-                    return Err("ConstrDef. Cannot return non-void value.");
+                    return Err("Type Mismatch");
                 }
             }
             scope.pop();
@@ -246,7 +246,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 Some(name) => {
                     Ok(ExprInfo::normal_var(name))
                 }
-                None => return Err("ThisExpr. Not in class.")
+                None => return Err("Invalid Identifier")
             }
         }
         ASTNode::ArrayInit(name, sizes, op) => {
@@ -257,7 +257,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     if let Some(expr) = node {
                         let expr_info = dfs(expr, scope, ctx)?;
                         if !expr_info.ty.is_int() {
-                            return Err("ArrayInit. Size is not int.");
+                            return Err("Type Mismatch");
                         }
                     }
                 }
@@ -265,7 +265,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 if let Some(expr) = op {
                     let expr_info = dfs(expr, scope, ctx)?;
                     if my_type != expr_info.ty && expr_info.ty.name != "{}" {
-                        return Err("ArrayInit. Type doesn't match.");
+                        return Err("Type Mismatch");
                     }
                 }
                 Ok(ExprInfo {
@@ -274,14 +274,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     func: None,
                 })
             } else {
-                return Err("ArrayInit. Class not found.");
+                return Err("Undefined Identifier");
             }
         }
         ASTNode::ClassInit(name) => {
             if let Some(_) = scope.find_class(name) {
                 Ok(ExprInfo::normal_var(name))
             } else {
-                return Err("ClassInit. Class not found.");
+                return Err("Undefined Identifier");
             }
         }
         ASTNode::BinaryExpr(name, lhs, rhs) => {
@@ -290,14 +290,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             if lhs_info.ty != rhs_info.ty {
                 // 先解决类型不等的情况
                 if *name == "=" {
-                    return if lhs_info.is_left && rhs_info.ty.is_null(){
+                    return if lhs_info.is_left && rhs_info.ty.is_null() {
                         if lhs_info.ty.is_primitive() {
-                            Err("Null cannot be assigned to primitive type variable")
+                            Err("Type Mismatch")
                         } else {
                             Ok(ExprInfo::void())
                         }
                     } else {
-                        Err("BinaryExpr. Type doesn't match.")
+                        Err("Type Mismatch")
                     };
                 }
                 if *name == "==" || *name == "!=" {
@@ -305,16 +305,16 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         || (!rhs_info.ty.is_primitive() && lhs_info.ty.is_null()) {
                         Ok(ExprInfo::normal_var("bool"))
                     } else {
-                        Err("BinaryExpr. Type doesn't match.")
+                        Err("Type Mismatch")
                     };
                 }
-                return Err("BinaryExpr. Type doesn't match.");
+                return Err("Type Mismatch");
             }
             if lhs_info.ty.name == "null" {
                 if *name == "==" || *name == "!=" {
                     return Ok(ExprInfo::normal_var("bool"));
                 }
-                return Err("BinaryExpr. Null type.");
+                return Err("Invalid Type");
             }
             // 类型相等
             match *name {
@@ -322,21 +322,21 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     if lhs_info.ty.is_int() || lhs_info.ty.is_string() {
                         Ok(ExprInfo::normal(lhs_info.ty))
                     } else {
-                        return Err("What the fuck did you add?");
+                        return Err("Invalid Type");
                     }
                 }
                 "-" | "*" | "/" | "%" => {
                     if lhs_info.ty.is_int() {
                         Ok(ExprInfo::normal_var("int"))
                     } else {
-                        return Err("What the fuck did you -*/% ?");
+                        return Err("Invalid Type");
                     }
                 }
                 "<" | ">" | "<=" | ">=" => {
                     if lhs_info.ty.is_int() || lhs_info.ty.is_string() {
                         Ok(ExprInfo::normal_var("bool"))
                     } else {
-                        return Err("What the fuck did you compare?");
+                        return Err("Invalid Type");
                     }
                 }
                 "==" | "!=" => {
@@ -346,24 +346,24 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     if lhs_info.ty.is_bool() {
                         Ok(ExprInfo::normal_var("bool"))
                     } else {
-                        return Err("What the fuck did you &&|| ?");
+                        return Err("Invalid Type");
                     }
                 }
                 "<<" | ">>" | "&" | "|" | "^" => {
                     if lhs_info.ty.is_int() {
                         Ok(ExprInfo::normal_var("int"))
                     } else {
-                        return Err("What the fuck did you put in logic expr?");
+                        return Err("Invalid Type");
                     }
                 }
                 "=" => {
                     if lhs_info.is_left {
                         Ok(ExprInfo::void())
                     } else {
-                        return Err("Right value assignment");
+                        return Err("Invalid Type");
                     }
                 }
-                _ => { return Err("What fucking binary operator?") }
+                _ => { return Err("Invalid Identifier") }
             }
         }
         ASTNode::UnitaryExpr(name, rhs) => {
@@ -375,27 +375,27 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         if rhs_info.ty.is_int() {
                             Ok(ExprInfo::left(rhs_info.ty.clone()))
                         } else {
-                            Err("Only int can be ++/--")
+                            Err("Invalid Type")
                         }
                     } else {
-                        Err("Only left value can be incremented")
+                        Err("Invalid Type")
                     }
                 }
                 "!" => {
                     if rhs_info.ty.is_bool() {
                         Ok(ExprInfo::normal_var("bool"))
                     } else {
-                        Err("Only bool can be !")
+                        Err("Invalid Type")
                     }
                 }
                 "+" | "-" | "~" => {
                     if rhs_info.ty.is_int() {
                         Ok(ExprInfo::normal_var("int"))
                     } else {
-                        Err("Only int can be +-~")
+                        Err("Invalid Type")
                     }
                 }
-                _ => { Err("What the fuck operator?") }
+                _ => { Err("Invalid Identifier") }
             };
         }
         ASTNode::TernaryExpr(cond, expr1, expr2) => {
@@ -409,19 +409,19 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     Ok(ExprInfo::normal(expr1_info.ty))
                 } else {
                     if expr1_info.ty.is_primitive() || expr2_info.ty.is_primitive() {
-                        Err("TernaryExpr. Expr1 and expr2 type mismatched!")
+                        Err("Type Mismatch")
                     } else {
                         if expr1_info.ty.is_null() {
                             Ok(ExprInfo::normal(expr2_info.ty))
                         } else if expr2_info.ty.is_null() {
                             Ok(ExprInfo::normal(expr1_info.ty))
                         } else {
-                            Err("TernaryExpr. Expr1 and expr2 type mismatched!")
+                            Err("Type Mismatch")
                         }
                     }
                 }
             } else {
-                Err("TernaryExpr. Cond is not bool type!")
+                Err("Invalid Type")
             }
         }
         ASTNode::Increment(lhs, _) => {
@@ -430,7 +430,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             if lhs_info.is_left && lhs_info.ty.is_int() {
                 Ok(ExprInfo::normal_var("int"))
             } else {
-                return Err("Only left-value int can be incremented.");
+                return Err("Invalid Type");
             }
         }
         ASTNode::ArrayAccess(lhs, inner) => {
@@ -443,10 +443,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         dim: lhs_info.ty.dim - 1,
                     }))
                 } else {
-                    return Err("ArrayAccess. Inner type is not int.");
+                    return Err("Invalid Type");
                 }
             } else {
-                return Err("Dimension out of bound");
+                return Err("Dimension Out Of Bound");
             }
         }
         ASTNode::MemberAccess(lhs, name) => {
@@ -469,36 +469,36 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     if lhs_info.ty.dim > 0 && *name == "size" {
                         return Ok(ExprInfo::normal_var("#FUNC_SIZE#"));
                     }
-                    return Err("MemberAccess. Member not found.");
+                    return Err("Undefined Identifier");
                 }
             } else {
-                return Err("MemberAccess. LHS is not a class.");
+                return Err("Undefined Identifier");
             }
         }
         ASTNode::FuncCall(lhs, params) => {
             let lhs_info = dfs(lhs, scope, ctx)?;
             if lhs_info.ty.name == "#FUNC_SIZE#" {
                 if params.len() != 0 {
-                    return Err("FuncCall. Size function should have no parameters.");
+                    return Err("Type Mismatch");
                 }
                 return Ok(ExprInfo::normal_var("int"));
             }
             if lhs_info.ty.name != "#FUNC#" {
-                return Err("FuncCall. LHS is not a function.");
+                return Err("Undefined Identifier");
             }
 
 
             let (ret_ty, args) = lhs_info.func.unwrap();
 
             if args.len() != params.len() {
-                return Err("MethodCall. Args number mismatched.");
+                return Err("Type Mismatch");
             }
             let my_type = ret_ty.clone();
             for (arg_ty, param) in args.iter().zip(params) {
                 let param_info = dfs(param, scope, ctx)?;
                 if *arg_ty != param_info.ty {
                     if arg_ty.is_primitive() || param_info.ty.name != "null" {
-                        return Err("MethodCall. Args type mismatched.");
+                        return Err("Type Mismatch");
                     }
                 }
             }
@@ -513,7 +513,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 }
                 Ok(ExprInfo::void())
             } else {
-                return Err("IfStmt. Cond is not bool type!");
+                return Err("Invalid Type");
             }
         }
         ASTNode::ForStmt(expr1, expr2, expr3, block) => {
@@ -524,7 +524,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             if let Some(expr2) = expr2 {
                 let expr2_info = dfs(expr2, scope, ctx)?;
                 if !expr2_info.ty.is_bool() {
-                    return Err("ForStmt. Expr2 is not bool type!");
+                    return Err("Invalid Type");
                 }
             }
             if let Some(expr3) = expr3 {
@@ -539,7 +539,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             if let Some(expr) = cond {
                 let expr_info = dfs(expr, scope, ctx)?;
                 if !expr_info.ty.is_bool() {
-                    return Err("WhileStmt. Cond is not bool type!");
+                    return Err("Invalid Type");
                 }
             }
             dfs(block, scope, ctx)?;
@@ -548,7 +548,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
         }
         ASTNode::ReturnStmt(ret) => {
             if !scope.is_in_func() {
-                return Err("FuncCall. Not in function.");
+                return Err("Invalid Control Flow");
             }
             if let Some(expr) = ret {
                 let expr_info = dfs(expr, scope, ctx)?;
@@ -560,13 +560,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
         }
         ASTNode::BreakStmt => {
             if !scope.is_in_loop() {
-                return Err("BreakStmt. Not in loop.");
+                return Err("Invalid Control Flow");
             }
             Ok(ExprInfo::void())
         }
         ASTNode::ContinueStmt => {
             if !scope.is_in_loop() {
-                return Err("ContinueStmt. Not in loop.");
+                return Err("Invalid Control Flow");
             }
             Ok(ExprInfo::void())
         }
@@ -589,14 +589,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 if !my_type_op.is_none() {
                     let my_type: Type = my_type_op.unwrap();
                     if my_type.dim != const_info.ty.dim && const_info.ty.name != "{}" {
-                        return Err("ArrConst. Dim mismatched.");
+                        return Err("Type Mismatch");
                     }
 
                     if my_type != const_info.ty {
                         if my_type.name == "{}" {
                             my_type_op = Some(const_info.ty);
                         } else if const_info.ty.name != "{}" {
-                            return Err("ArrConst. Type mismatched.");
+                            return Err("Type Mismatch");
                         }
                     }
                 } else {
@@ -615,11 +615,11 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             for node in ch {
                 let info = dfs(node, scope, ctx)?;
                 if info.ty.dim != 0 {
-                    return Err("FmtStr. Type not supported.");
+                    return Err("Invalid Type");
                 }
                 match info.ty.name {
                     "int" | "string" | "bool" => {}
-                    _ => return Err("FmtStr. Type not supported.")
+                    _ => return Err("Invalid Type")
                 }
             }
             Ok(ExprInfo::normal_var("string"))
@@ -628,7 +628,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             if let Some(res) = scope.find_ident(name) {
                 Ok(res)
             } else {
-                Err("Undefined identifier.")
+                Err("Undefined Identifier")
             }
         }
     }
