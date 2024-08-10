@@ -42,4 +42,12 @@ impl<'a> ExprInfo<'a> {
             func: None,
         }
     }
+
+    pub fn left(ty: Type<'a>) -> Self {
+        ExprInfo {
+            ty,
+            is_left: true,
+            func: None,
+        }
+    }
 }

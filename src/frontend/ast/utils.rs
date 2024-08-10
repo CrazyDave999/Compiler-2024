@@ -5,6 +5,7 @@ pub struct Type<'a> {
     pub dim: i32,
 }
 
+
 impl<'a> PartialEq for Type<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.dim == other.dim
@@ -39,8 +40,16 @@ impl<'a> Type<'a> {
         Type { name: "void", dim: 0 }
     }
 
+    pub fn is_void(&self) -> bool {
+        self.name == "void"
+    }
+
     pub fn null() -> Self {
         Type { name: "null", dim: 0 }
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.name == "null"
     }
 
     pub fn func() -> Self {
