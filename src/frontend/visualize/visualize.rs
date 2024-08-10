@@ -21,14 +21,14 @@ fn show_indent(indent: usize) {
 }
 fn print_ast(ast: &ASTNode, indent: usize) {
     match ast {
-        ASTNode::Root(ch) => {
+        ASTNode::Root(ch, _) => {
             show_indent(indent);
             print!("Root\n");
             for node in ch {
                 print_ast(node, indent + 2);
             }
         }
-        ASTNode::VarDecl(ty, ch) => {
+        ASTNode::VarDecl(ty, ch, _) => {
             show_indent(indent);
             print!("VarDecl\n");
 
@@ -43,7 +43,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 }
             }
         }
-        ASTNode::FuncDef(ty, name, arg_list, block) => {
+        ASTNode::FuncDef(ty, name, arg_list, block, _) => {
             show_indent(indent);
             print!("FuncDef\n");
             show_indent(indent);
@@ -57,14 +57,14 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("\n");
             print_ast(block, indent + 2);
         }
-        ASTNode::ConstrDef(name, block) => {
+        ASTNode::ConstrDef(name, block, _) => {
             show_indent(indent);
             print!("ConstrDef\n");
             show_indent(indent);
             print!("{}\n", name);
             print_ast(block, indent + 2);
         }
-        ASTNode::ClassDef(name, ch) => {
+        ASTNode::ClassDef(name, ch, _) => {
             show_indent(indent);
             print!("ClassDef\n");
             show_indent(indent);
@@ -75,18 +75,18 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print_ast(node, indent + 2);
             }
         }
-        ASTNode::Block(ch) => {
+        ASTNode::Block(ch, _) => {
             show_indent(indent);
             print!("Block\n");
             for node in ch {
                 print_ast(node, indent + 2);
             }
         }
-        ASTNode::ThisExpr => {
+        ASTNode::ThisExpr(_) => {
             show_indent(indent);
             print!("ThisExpr\n");
         }
-        ASTNode::ArrayInit(name, sizes, arr_const) => {
+        ASTNode::ArrayInit(name, sizes, arr_const, _) => {
             show_indent(indent);
             print!("ArrayInit\n");
             show_indent(indent);
@@ -109,13 +109,13 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print_ast(arr_const, indent + 2);
             }
         }
-        ASTNode::ClassInit(name) => {
+        ASTNode::ClassInit(name, _) => {
             show_indent(indent);
             print!("ClassInit\n");
             show_indent(indent);
             print!("new {}\n", name);
         }
-        ASTNode::BinaryExpr(op, lhs, rhs) => {
+        ASTNode::BinaryExpr(op, lhs, rhs, _) => {
             show_indent(indent);
             print!("BinaryExpr\n");
             show_indent(indent);
@@ -127,7 +127,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("RHS:\n");
             print_ast(rhs, indent + 2);
         }
-        ASTNode::UnitaryExpr(op, rhs) => {
+        ASTNode::UnitaryExpr(op, rhs, _) => {
             show_indent(indent);
             print!("UnitaryExpr\n");
             show_indent(indent);
@@ -136,7 +136,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("RHS:\n");
             print_ast(rhs, indent + 2);
         }
-        ASTNode::TernaryExpr(cond, expr1, expr2) => {
+        ASTNode::TernaryExpr(cond, expr1, expr2, _) => {
             show_indent(indent);
             print!("TernaryExpr\n");
             show_indent(indent);
@@ -149,7 +149,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("Expr2:\n");
             print_ast(expr2, indent + 2);
         }
-        ASTNode::Increment(lhs, op) => {
+        ASTNode::Increment(lhs, op, _) => {
             show_indent(indent);
             print!("Increment\n");
             show_indent(indent);
@@ -158,7 +158,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("{}\n", op);
         }
-        ASTNode::ArrayAccess(lhs, inner) => {
+        ASTNode::ArrayAccess(lhs, inner, _) => {
             show_indent(indent);
             print!("ArrayAccess\n");
             show_indent(indent);
@@ -168,7 +168,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("Inner:\n");
             print_ast(inner, indent + 2);
         }
-        ASTNode::MemberAccess(lhs, name) => {
+        ASTNode::MemberAccess(lhs, name, _) => {
             show_indent(indent);
             print!("MemberAccess\n");
             show_indent(indent);
@@ -177,7 +177,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("{}\n", name);
         }
-        ASTNode::FuncCall(lhs, params) => {
+        ASTNode::FuncCall(lhs, params, _) => {
             show_indent(indent);
             print!("FuncCall\n");
             show_indent(indent);
@@ -189,7 +189,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print_ast(param, indent + 2);
             }
         }
-        ASTNode::IfStmt(cond, if_block, else_block) => {
+        ASTNode::IfStmt(cond, if_block, else_block, _) => {
             show_indent(indent);
             print!("IfStmt\n");
             show_indent(indent);
@@ -204,7 +204,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print_ast(else_block, indent + 2);
             }
         }
-        ASTNode::ForStmt(expr1, expr2, expr3, block) => {
+        ASTNode::ForStmt(expr1, expr2, expr3, block, _) => {
             show_indent(indent);
             print!("ForStmt\n");
             show_indent(indent);
@@ -234,7 +234,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             }
             print_ast(block, indent + 2);
         }
-        ASTNode::WhileStmt(cond, block) => {
+        ASTNode::WhileStmt(cond, block, _) => {
             show_indent(indent);
             print!("WhileStmt\n");
             if let Some(cond) = cond {
@@ -245,7 +245,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             }
             print_ast(block, indent + 2);
         }
-        ASTNode::ReturnStmt(ret) => {
+        ASTNode::ReturnStmt(ret, _) => {
             show_indent(indent);
             print!("ReturnStmt\n");
             if let Some(ret) = ret {
@@ -255,31 +255,31 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print!("NULL\n");
             }
         }
-        ASTNode::BreakStmt => {
+        ASTNode::BreakStmt(_) => {
             show_indent(indent);
             print!("BreakStmt\n");
         }
-        ASTNode::ContinueStmt => {
+        ASTNode::ContinueStmt(_) => {
             show_indent(indent);
             print!("ContinueStmt\n");
         }
-        ASTNode::NULL => {
+        ASTNode::NULL(_) => {
             show_indent(indent);
             print!("NULL\n");
         }
-        ASTNode::Int(val) => {
+        ASTNode::Int(val, _) => {
             show_indent(indent);
             print!("Int {}\n", val);
         }
-        ASTNode::Str(s) => {
+        ASTNode::Str(s, _) => {
             show_indent(indent);
             print!("Str {}\n", s);
         }
-        ASTNode::Bool(b) => {
+        ASTNode::Bool(b, _) => {
             show_indent(indent);
             print!("Bool {}\n", b);
         }
-        ASTNode::ArrConst(ch) => {
+        ASTNode::ArrConst(ch, _) => {
             show_indent(indent);
             print!("ArrConst\n");
             show_indent(indent);
@@ -292,14 +292,14 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("}}\n");
         }
-        ASTNode::FmtStr(ch) => {
+        ASTNode::FmtStr(ch, _) => {
             show_indent(indent);
             print!("FmtStr\n");
             for node in ch {
                 print_ast(node, indent + 2);
             }
         }
-        ASTNode::Ident(name) => {
+        ASTNode::Ident(name, _) => {
             show_indent(indent);
             print!("Ident {}\n", name);
         }
