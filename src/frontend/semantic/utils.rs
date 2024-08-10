@@ -17,7 +17,7 @@ pub struct ExprInfo<'a> {
     pub ty: Type<'a>,
     pub is_left: bool,
     pub mem: Option<(&'a str, &'a str)>, // class name, member name
-    pub gb_func: Option<&'a str>, // function name
+    pub func: Option<(Type<'a>, Vec<Type<'a>>)>, // ret type, args
 }
 
 impl<'a> ExprInfo<'a> {
@@ -26,7 +26,7 @@ impl<'a> ExprInfo<'a> {
             ty: Type::void(),
             is_left: false,
             mem: None,
-            gb_func: None,
+            func: None,
         }
     }
 
@@ -35,7 +35,7 @@ impl<'a> ExprInfo<'a> {
             ty: Type { name, dim: 0 },
             is_left: false,
             mem: None,
-            gb_func: None,
+            func: None,
         }
     }
     pub fn normal(ty: Type<'a>) -> Self {
@@ -43,7 +43,7 @@ impl<'a> ExprInfo<'a> {
             ty,
             is_left: false,
             mem: None,
-            gb_func: None,
+            func: None,
         }
     }
 }

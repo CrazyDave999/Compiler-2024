@@ -20,7 +20,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 match node {
                     ASTNode::ClassDef(name, _) => {
                         if let Some(_) = scope.find_class(name) {
-                            return Err("Duplicate class definition");
+                            return Err("Multiple definition");
                         }
                         scope.insert_class(name, HashMap::new());
                     }
@@ -32,8 +32,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             for node in ch {
                 match node {
                     ASTNode::FuncDef(ty, name, args, _) => {
-                        if let Some(_) = scope.find_gb_func(name) {
-                            return Err("Duplicate function definition");
+                        if let Some(_) = scope.find_ident(name) {
+                            return Err("Multiple definition");
                         }
                         if let Some(_) = scope.find_class(name) {
                             return Err("Function name conflict with class name");
@@ -62,8 +62,11 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         scope.insert_func(name, ty, &my_args);
                     }
                     ASTNode::ClassDef(name, ch) => {
-                        if let Some(_) = scope.find_gb_func(name) {
-                            return Err("Class name conflict with function name");
+                        match scope.find_ident_top(name) {
+                            Some(Member::Func(_, _)) => {
+                                return Err("Class name conflict with function name");
+                            }
+                            _ => {}
                         }
 
                         let mut members = HashMap::new();
@@ -139,13 +142,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 return Err("Var type not found!");
             }
             for (name, op) in ch {
-                if let Some(_) = scope.find_gb_func(name) {
-                    // 变量名和函数名不能重复
-                    return Err("Var name conflicts with function name.");
+                if let Some(_) = scope.find_ident_top(name) {
+                    return Err("Multiple definition");
                 }
-                if let Some(_) = scope.find_var_top(name) {
-                    return Err("Duplicate var names in same scope.");
-                }
+
                 if let Some(expr) = op {
                     let expr_info = dfs(expr, scope, ctx)?;
                     if *ty != expr_info.ty {
@@ -271,9 +271,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 Ok(ExprInfo {
                     ty: my_type,
                     is_left: false,
-
                     mem: None,
-                    gb_func: None,
+                    func: None,
                 })
             } else {
                 return Err("ArrayInit. Class not found.");
@@ -378,7 +377,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                 ty: rhs_info.ty,
                                 is_left: true,
                                 mem: None,
-                                gb_func: None,
+                                func: None,
                             })
                         } else {
                             Err("Only int can be ++/--")
@@ -448,7 +447,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         ty: Type { name: &lhs_info.ty.name, dim: lhs_info.ty.dim - 1 },
                         is_left: true,
                         mem: None,
-                        gb_func: None,
+                        func: None,
                     })
                 } else {
                     return Err("ArrayAccess. Inner type is not int.");
@@ -466,17 +465,16 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                             Ok(ExprInfo {
                                 ty: ty.clone(),
                                 is_left: true,
-
                                 mem: Some((&lhs_info.ty.name, name)),
-                                gb_func: None,
+                                func: None,
                             })
                         }
-                        Member::Func(_, _) => {
+                        Member::Func(ret_ty, args) => {
                             Ok(ExprInfo {
                                 ty: Type::func(),
                                 is_left: false,
                                 mem: Some((&lhs_info.ty.name, name)),
-                                gb_func: None,
+                                func: Some((ret_ty.clone(), args.clone())),
                             })
                         }
                     }
@@ -503,50 +501,22 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 return Err("FuncCall. LHS is not a function.");
             }
 
-            // 如果是方法，lhs_info.mem.0是类名
-            if let Some((class_name, mem_name)) = lhs_info.mem {
-                // 显示或隐式地调用类方法
-                return if let Some(method) = scope.get_member(class_name, mem_name) {
-                    match method {
-                        Member::Func(ret_ty, args) => {
-                            if args.len() != params.len() {
-                                return Err("MethodCall. Args number mismatched.");
-                            }
-                            let my_type = ret_ty.clone();
-                            for (arg_ty, param) in args.iter().zip(params) {
-                                let param_info = dfs(param, scope, ctx)?;
-                                if *arg_ty != param_info.ty {
-                                    if arg_ty.is_primitive() || param_info.ty.name != "null" {
-                                        return Err("MethodCall. Args type mismatched.");
-                                    }
-                                }
-                            }
-                            Ok(ExprInfo::normal(my_type))
-                        }
-                        _ => { Err("MethodCall. Member is not a function.") }
-                    }
-                } else {
-                    Err("MethodCall. Member not found.")
-                };
+
+            let (ret_ty, args) = lhs_info.func.unwrap();
+
+            if args.len() != params.len() {
+                return Err("MethodCall. Args number mismatched.");
             }
-            // 全局函数
-            return if let Some((ret_ty, args)) = scope.find_gb_func(&lhs_info.gb_func.unwrap()) {
-                if args.len() != params.len() {
-                    return Err("FuncCall. Args number mismatched.");
-                }
-                let my_type = ret_ty.clone();
-                for (arg_ty, param) in args.iter().zip(params) {
-                    let param_info = dfs(param, scope, ctx)?;
-                    if *arg_ty != param_info.ty {
-                        if arg_ty.is_primitive() || param_info.ty.name != "null" {
-                            return Err("FuncCall. Args type mismatched.");
-                        }
+            let my_type = ret_ty.clone();
+            for (arg_ty, param) in args.iter().zip(params) {
+                let param_info = dfs(param, scope, ctx)?;
+                if *arg_ty != param_info.ty {
+                    if arg_ty.is_primitive() || param_info.ty.name != "null" {
+                        return Err("MethodCall. Args type mismatched.");
                     }
                 }
-                Ok(ExprInfo::normal(my_type))
-            } else {
-                Err("FuncCall. Function not found.")
-            };
+            }
+            Ok(ExprInfo::normal(my_type))
         }
         ASTNode::IfStmt(cond, if_block, else_block) => {
             let cond_info = dfs(cond, scope, ctx)?;
