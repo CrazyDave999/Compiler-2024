@@ -93,7 +93,6 @@ impl<'a> Scope<'a> {
                 return Some(ExprInfo {
                     ty: ty.clone(),
                     is_left: true,
-                    
                     mem: if let ScopeType::Class(class_name) = layer.ty {
                         Some((class_name, name))
                     } else {
@@ -106,7 +105,6 @@ impl<'a> Scope<'a> {
                 return Some(ExprInfo {
                     ty: Type::func(),
                     is_left: false,
-                    
                     mem: if let ScopeType::Class(class_name) = layer.ty {
                         Some((class_name, name))
                     } else {
