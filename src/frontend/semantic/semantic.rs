@@ -271,7 +271,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 Ok(ExprInfo {
                     ty: my_type,
                     is_left: false,
-                    mem: None,
                     func: None,
                 })
             } else {
@@ -376,7 +375,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                             Ok(ExprInfo {
                                 ty: rhs_info.ty,
                                 is_left: true,
-                                mem: None,
                                 func: None,
                             })
                         } else {
@@ -446,7 +444,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     Ok(ExprInfo {
                         ty: Type { name: &lhs_info.ty.name, dim: lhs_info.ty.dim - 1 },
                         is_left: true,
-                        mem: None,
                         func: None,
                     })
                 } else {
@@ -465,7 +462,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                             Ok(ExprInfo {
                                 ty: ty.clone(),
                                 is_left: true,
-                                mem: Some((&lhs_info.ty.name, name)),
+                                
                                 func: None,
                             })
                         }
@@ -473,7 +470,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                             Ok(ExprInfo {
                                 ty: Type::func(),
                                 is_left: false,
-                                mem: Some((&lhs_info.ty.name, name)),
+                                
                                 func: Some((ret_ty.clone(), args.clone())),
                             })
                         }

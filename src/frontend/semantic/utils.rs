@@ -16,7 +16,6 @@ impl Context<'_> {
 pub struct ExprInfo<'a> {
     pub ty: Type<'a>,
     pub is_left: bool,
-    pub mem: Option<(&'a str, &'a str)>, // class name, member name
     pub func: Option<(Type<'a>, Vec<Type<'a>>)>, // ret type, args
 }
 
@@ -25,7 +24,6 @@ impl<'a> ExprInfo<'a> {
         ExprInfo {
             ty: Type::void(),
             is_left: false,
-            mem: None,
             func: None,
         }
     }
@@ -34,7 +32,6 @@ impl<'a> ExprInfo<'a> {
         ExprInfo {
             ty: Type { name, dim: 0 },
             is_left: false,
-            mem: None,
             func: None,
         }
     }
@@ -42,7 +39,6 @@ impl<'a> ExprInfo<'a> {
         ExprInfo {
             ty,
             is_left: false,
-            mem: None,
             func: None,
         }
     }

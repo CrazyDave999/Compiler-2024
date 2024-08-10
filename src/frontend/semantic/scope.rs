@@ -93,10 +93,6 @@ impl<'a> Scope<'a> {
                         Some(ExprInfo {
                             ty: ty.clone(),
                             is_left: true,
-                            mem: match layer.ty {
-                                ScopeType::Class(class_name) => Some((class_name, name)),
-                                _ => None,
-                            },
                             func: None,
                         })
                     }
@@ -104,11 +100,6 @@ impl<'a> Scope<'a> {
                         Some(ExprInfo {
                             ty: Type::func(),
                             is_left: false,
-                            mem: match layer.ty {
-                                ScopeType::Class(class_name) => Some((class_name, name)),
-                                ScopeType::Global => Some(("#GLOBAL#", name)),
-                                _ => None,
-                            },
                             func: Some((ty.clone(), args.clone())),
                         })
                     }
@@ -117,8 +108,6 @@ impl<'a> Scope<'a> {
         }
         None
     }
-
-
     pub fn find_ident_top(&mut self, name: &'a str) -> Option<Member<'a>> {
         self.top().map.get(name).cloned()
     }
