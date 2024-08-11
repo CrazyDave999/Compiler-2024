@@ -81,21 +81,26 @@ fn print_error_context(source: &str, span: &Span, msg: &str) {
 
     // 获取错误所在行
     let lines: Vec<&str> = source.lines().collect();
-    let error_line_index = source[..start].matches('\n').count();
+    let error_line_index = source[..start].matches('\n').count() as i32;
 
     eprintln!("Error line: {}", error_line_index + 1);
 
     for (i, line) in lines.iter().enumerate() {
-        if i >= error_line_index - 2 && i <= error_line_index {
+        if i as i32 >= error_line_index - 2 && i as i32 <= error_line_index {
             eprintln!("{: >4} | {}", i + 1, line);
         }
     }
-    let start_col = start - source[..start].rfind('\n').unwrap_or(0) - 1;
-    let end_col = end - source[..end].rfind('\n').unwrap_or(0) - 1;
+    let pre_len = source[..start].rfind('\n').unwrap_or(0);
+    let start_col = start - pre_len;
+    let end_col = if end - start > lines[error_line_index as usize].len() {
+        lines[error_line_index as usize].len() + 1
+    } else {
+        end - pre_len
+    };
 
-    eprintln!("{}{}", " ".repeat(start_col + 7), "^".repeat(end_col - start_col));
+    eprintln!("{}{}", " ".repeat(start_col + 6), "^".repeat(end_col - start_col));
 
-    eprintln!("{}{}\n", " ".repeat(start_col + 7), msg);
+    eprintln!("{}{}\n", " ".repeat(start_col + 6), msg);
 }
 
 
