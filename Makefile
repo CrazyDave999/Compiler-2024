@@ -1,7 +1,9 @@
 all: build
 
+PROJECT_NAME = compiler-2024
+
 build:
 	cargo build
 
 run:
-	cargo run -- -fsyntax-only
+	./target/debug/$(PROJECT_NAME) -fsyntax-only
