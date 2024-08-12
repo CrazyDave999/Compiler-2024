@@ -34,10 +34,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 match node {
                     ASTNode::FuncDef(ty, name, args, _, sp) => {
                         if let Some(_) = scope.find_ident(name) {
-                            return Err(("Multiple definitions", sp.clone()));
+                            return Err(("Multiple Definitions", sp.clone()));
                         }
                         if let Some(_) = scope.find_class(name) {
-                            return Err(("Multiple definitions", sp.clone()));
+                            return Err(("Multiple Definitions", sp.clone()));
                         }
                         if *name == "main" {
                             main = true;
@@ -65,7 +65,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     ASTNode::ClassDef(name, ch, sp) => {
                         match scope.find_ident_top(name) {
                             Some(Member::Func(_, _)) => {
-                                return Err(("Multiple definitions", sp.clone()));
+                                return Err(("Multiple Definitions", sp.clone()));
                             }
                             _ => {}
                         }
@@ -77,7 +77,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                 ASTNode::ConstrDef(_, _, sp) => {
                                     if constr {
                                         // Two construct function
-                                        return Err(("Multiple definitions", sp.clone()));
+                                        return Err(("Multiple Definitions", sp.clone()));
                                     }
                                     constr = true;
                                 }
@@ -91,7 +91,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                     for (name, op) in ch {
                                         if members.contains_key(name) {
                                             // 重复定义
-                                            return Err(("Multiple definitions", sp.clone()));
+                                            return Err(("Multiple Definitions", sp.clone()));
                                         }
                                         if let Some(_) = op {
                                             // 类成员默认初始化表达式为非法
@@ -103,7 +103,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                 ASTNode::FuncDef(ty, name, args, _, sp) => {
                                     if members.contains_key(name) {
                                         // 重复定义
-                                        return Err(("Multiple definitions", sp.clone()));
+                                        return Err(("Multiple Definitions", sp.clone()));
                                     }
                                     let mut my_args = vec![];
                                     for (ty, _) in args {
@@ -144,7 +144,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             }
             for (name, op) in ch {
                 if let Some(_) = scope.find_ident_top(name) {
-                    return Err(("Multiple definitions", sp.clone()));
+                    return Err(("Multiple Definitions", sp.clone()));
                 }
 
                 if let Some(expr) = op {

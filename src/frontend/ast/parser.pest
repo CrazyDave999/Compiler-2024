@@ -64,7 +64,7 @@ fmt_char = @{ escape_char | ( !( "\"" | "$" | "\\" ) ~ ANY ) }
 
 increment = { "++" | "--" }
 array_access = { "[" ~ expr ~ "]" }
-member_access = { "." ~ ident }
+member_access = { "." ~ ( ident | keyword ) }
 func_call = { "(" ~ test_list ~ ")" }
 test_list = { ( expr ~ ( "," ~ expr )* )? }
 
