@@ -8,6 +8,7 @@ pub mod frontend;
 use frontend::ast;
 use frontend::visualize;
 use frontend::semantic;
+use frontend::ir;
 
 
 fn fail(s: &str) {
@@ -103,6 +104,33 @@ fn print_error_context(source: &str, span: &Span, msg: &str) {
     eprintln!("{}{}\n", " ".repeat(start_col + 6), msg);
 }
 
+fn emit_llvm(file: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let input = fs::read_to_string(file)?;
+    match ast::MxParser::parse(ast::Rule::file, &input) {
+        Ok(pairs) => {
+            let ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            match semantic::check(&ast) {
+                Ok(_) => {
+                    let ir_nodes = ir::build_ir(&ast);
+                    for ir in ir_nodes {
+                        print!("{}", ir);
+                    }
+                    Ok(())
+                }
+                Err((msg, span)) => {
+                    println!("\nError: {}\n", msg);
+                    print_error_context(&input, &span, msg);
+                    Err(Box::new(io::Error::new(io::ErrorKind::Other, msg)))
+                }
+            }
+        }
+        Err(e) => {
+            println!("\nParse error: {}\n", e);
+            Err(Box::new(e))
+        }
+    }
+}
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_args: Vec<_> = env::args().collect();
@@ -113,6 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "-fsyntax-only" => syntax_only_oj(),
         "-fsyntax-test" => syntax_only_test(env_args[2].as_str()),
         "-debug" => detailed_debug(env_args[2].as_str()),
+        "-emit-llvm" => emit_llvm(env_args[2].as_str()),
         _ => {
             fail("Invalid Arguments");
             Ok(())
