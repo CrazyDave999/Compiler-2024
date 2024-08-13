@@ -4,7 +4,7 @@ use super::utils::ExprInfo;
 
 #[derive(Clone)]
 pub(crate) enum Member<'a> {
-    Var(Type<'a>),
+    Var(Type<'a>, i32),
     Func(Type<'a>, Vec<Type<'a>>),
 }
 pub(crate) enum ScopeType<'a> {
@@ -73,8 +73,8 @@ impl<'a> Scope<'a> {
         self.layers.last_mut().unwrap()
     }
 
-    pub fn insert_var(&mut self, name: &'a str, ty: Type<'a>) {
-        self.top().map.insert(name, Member::Var(ty));
+    pub fn insert_var(&mut self, name: &'a str, ty: Type<'a>, idx: i32) {
+        self.top().map.insert(name, Member::Var(ty, idx));
     }
 
     pub fn insert_func(&mut self, name: &'a str, ty: &Type<'a>, args: &Vec<Type<'a>>) {
@@ -86,21 +86,29 @@ impl<'a> Scope<'a> {
     }
 
     pub fn find_ident(&self, name: &'a str) -> Option<ExprInfo<'a>> {
-        for layer in self.layers.iter().rev() {
+        for (i, layer) in self.layers.iter().rev().enumerate() {
             if let Some(member) = layer.map.get(name) {
                 return match member {
-                    Member::Var(ty) => {
+                    Member::Var(ty, idx) => {
                         Some(ExprInfo {
                             ty: ty.clone(),
                             is_left: true,
                             func: None,
+                            idx: *idx,
+                            layer: (self.layers.len() - 1 - i) as i32,
                         })
                     }
                     Member::Func(ty, args) => {
                         Some(ExprInfo {
-                            ty: Type::func(),
+                            ty: match layer.ty {
+                                ScopeType::Class(_) => Type::method(),
+                                ScopeType::Global => Type::func(),
+                                _ => unreachable!()
+                            },
                             is_left: false,
                             func: Some((ty.clone(), args.clone())),
+                            idx: -1,
+                            layer: (self.layers.len() - 1 - i) as i32,
                         })
                     }
                 };

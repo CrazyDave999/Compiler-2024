@@ -55,4 +55,8 @@ impl<'a> Type<'a> {
     pub fn func() -> Self {
         Type { name: "#FUNC#", dim: 0 }
     }
+
+    pub fn method() -> Self {
+        Type { name: "#METHOD#", dim: 0 }
+    }
 }

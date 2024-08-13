@@ -21,9 +21,9 @@ pub enum ASTNode<'a> {
 
     // four kinds of suffixes
     Increment(Box<ASTNode<'a>>, &'a str,Span<'a>), // lhs, op
-    ArrayAccess(Box<ASTNode<'a>>, Box<ASTNode<'a>>,Span<'a>), // lhs, inner expr
-    MemberAccess(Box<ASTNode<'a>>, &'a str,Span<'a>), // lhs, name
-    FuncCall(Box<ASTNode<'a>>, Vec<ASTNode<'a>>,Span<'a>), // lhs, parameters
+    ArrayAccess(Box<ASTNode<'a>>, Box<ASTNode<'a>>,Span<'a>, Type<'a>), // lhs, inner expr, type
+    MemberAccess(Box<ASTNode<'a>>, &'a str,Span<'a>,i32,Type<'a>), // lhs, name
+    FuncCall(Box<ASTNode<'a>>, Vec<ASTNode<'a>>,Span<'a>, Type<'a>), // lhs, parameters, ret_ty
 
     IfStmt(Box<ASTNode<'a>>, Box<ASTNode<'a>>, Option<Box<ASTNode<'a>>>,Span<'a>), // expr(condition), if-block, else-block
     ForStmt(Option<Box<ASTNode<'a>>>, Option<Box<ASTNode<'a>>>, Option<Box<ASTNode<'a>>>, Box<ASTNode<'a>>,Span<'a>), // expr1, expr2, expr3, block
@@ -38,7 +38,7 @@ pub enum ASTNode<'a> {
     Bool(bool,Span<'a>),
     ArrConst(Vec<ASTNode<'a>>,Span<'a>),
     FmtStr(Vec<ASTNode<'a>>,Span<'a>),
-    Ident(&'a str,Span<'a>),
+    Ident(&'a str,Span<'a>, i32,Type<'a>,i32), // index, type, layer
 }
 
 

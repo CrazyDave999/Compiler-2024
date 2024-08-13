@@ -12,7 +12,7 @@ pub enum IRNode {
     Allocate(String, IRType), // res, ty
     Load(String, IRType, String), // res, ty, ptr
     Store(IRType, String, String), // ty, val, ptr
-    GetElementPtr(String, IRType, String, Vec<(IRType, i32)>), // res, ty, ptr, indexes
+    GetElementPtr(String, IRType, String, Vec<(IRType, String)>), // res, ty, ptr, indexes
     ICMP(String, String, IRType, String, String), // res, cond, ty, op1, op2
     Call(Option<String>, IRType, String, Vec<(IRType, String)>), // res, res_ty, func_name, args
     Phi(String, IRType, Vec<(String, String)>), // res, ty, vars and labels
@@ -81,7 +81,7 @@ impl Display for IRNode {
             IRNode::Call(res, res_ty, name, args) => {
                 write!(
                     f,
-                    "{} = call {} @{}({})\n",
+                    "{} = call {} {}({})\n",
                     res.clone().unwrap_or("".to_string()),
                     res_ty,
                     name,

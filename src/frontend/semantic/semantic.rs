@@ -6,18 +6,18 @@ use super::utils::{ExprInfo, Context};
 use super::scope::{Scope, ScopeType, Member};
 
 
-pub fn check<'a>(ast: &'a ASTNode) -> Result<(), (&'static str, Span<'a>)> {
+pub fn check<'a>(ast: &'a mut ASTNode) -> Result<(), (&'static str, Span<'a>)> {
     let mut scope = Scope::new();
     let mut ctx = Context::new();
     dfs(ast, &mut scope, &mut ctx)?;
     Ok(())
 }
 
-fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> Result<ExprInfo<'a>, (&'static str, Span<'a>)> {
+fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> Result<ExprInfo<'a>, (&'static str, Span<'a>)> {
     match ast {
         ASTNode::Root(ch, sp) => {
             // 先收集类名
-            for node in ch {
+            for node in &mut *ch {
                 match node {
                     ASTNode::ClassDef(name, _, sp) => {
                         if let Some(_) = scope.find_class(name) {
@@ -30,7 +30,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             }
 
             let mut main = false;
-            for node in ch {
+            for node in &mut *ch {
                 match node {
                     ASTNode::FuncDef(ty, name, args, _, sp) => {
                         if let Some(_) = scope.find_ident(name) {
@@ -72,6 +72,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
 
                         let mut members = HashMap::new();
                         let mut constr = false;
+                        let mut idx = 0;
                         for mem in ch {
                             match mem {
                                 ASTNode::ConstrDef(_, _, sp) => {
@@ -97,7 +98,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                                             // 类成员默认初始化表达式为非法
                                             return Err(("Class member default init", sp.clone()));
                                         }
-                                        members.insert(*name, Member::Var(ty.clone()));
+                                        members.insert(*name, Member::Var(ty.clone(), idx));
+                                        idx += 1;
                                     }
                                 }
                                 ASTNode::FuncDef(ty, name, args, _, sp) => {
@@ -158,7 +160,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                         }
                     }
                 }
-                scope.insert_var(name, ty.clone());
+                scope.insert_var(name, ty.clone(), -1);
             }
             Ok(ExprInfo::void())
         }
@@ -166,7 +168,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             // 考虑形参可以与函数重名
             scope.push(ScopeType::Func);
             for (ty, name) in args {
-                scope.insert_var(name, ty.clone());
+                scope.insert_var(name, ty.clone(), -1);
             }
             dfs(block, scope, ctx)?;
             if !ty.is_void() && ctx.ret_types.is_empty() && *name != "main" {
@@ -206,11 +208,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
         }
         ASTNode::ClassDef(name, ch, _) => {
             scope.push(ScopeType::Class(name));
-            for mem in ch {
+            let mut idx = 0;
+            for mem in &mut *ch {
                 match mem {
                     ASTNode::VarDecl(ty, ch, _) => {
                         for (name, _) in ch {
-                            scope.insert_var(name, ty.clone());
+                            scope.insert_var(name, ty.clone(), idx);
+                            idx += 1;
                         }
                     }
                     ASTNode::FuncDef(ret_ty, name, args, _, _) => {
@@ -273,6 +277,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                     ty: my_type,
                     is_left: false,
                     func: None,
+                    idx: -1,
+                    layer: -1,
                 })
             } else {
                 return Err(("Undefined Identifier", sp.clone()));
@@ -434,15 +440,16 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 return Err(("Invalid Type", sp.clone()));
             }
         }
-        ASTNode::ArrayAccess(lhs, inner, sp) => {
+        ASTNode::ArrayAccess(lhs, inner, sp, ty) => {
             let lhs_info = dfs(lhs, scope, ctx)?;
             if lhs_info.ty.dim > 0 {
                 let inner_info = dfs(inner, scope, ctx)?;
                 if inner_info.ty.is_int() {
-                    Ok(ExprInfo::left(Type {
+                    *ty = Type {
                         name: &lhs_info.ty.name,
                         dim: lhs_info.ty.dim - 1,
-                    }))
+                    };
+                    Ok(ExprInfo::left(ty.clone()))
                 } else {
                     return Err(("Invalid Type", sp.clone()));
                 }
@@ -450,25 +457,30 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 return Err(("Dimension Out Of Bound", sp.clone()));
             }
         }
-        ASTNode::MemberAccess(lhs, name, sp) => {
+        ASTNode::MemberAccess(lhs, name, sp, idx, ty) => {
             let lhs_info = dfs(lhs, scope, ctx)?;
             if let Some(members) = scope.find_class(&lhs_info.ty.name) {
                 if let Some(member) = members.get(*name) {
                     match member {
-                        Member::Var(ty) => {
-                            Ok(ExprInfo::left(ty.clone()))
+                        Member::Var(ty_, idx_) => {
+                            *idx = *idx_;
+                            *ty = ty_.clone();
+                            Ok(ExprInfo::left(ty_.clone()))
                         }
                         Member::Func(ret_ty, args) => {
+                            *ty = Type::method();
                             Ok(ExprInfo {
-                                ty: Type::func(),
+                                ty: Type::method(),
                                 is_left: false,
                                 func: Some((ret_ty.clone(), args.clone())),
+                                idx: -1,
+                                layer: -1,
                             })
                         }
                     }
                 } else {
                     if lhs_info.ty.dim > 0 && *name == "size" {
-                        return Ok(ExprInfo::normal_var("#FUNC_SIZE#"));
+                        return Ok(ExprInfo::normal_var("#METHOD_SIZE#"));
                     }
                     return Err(("Undefined Identifier", sp.clone()));
                 }
@@ -476,25 +488,26 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
                 return Err(("Undefined Identifier", sp.clone()));
             }
         }
-        ASTNode::FuncCall(lhs, params, sp) => {
+        ASTNode::FuncCall(lhs, params, sp, ret_ty) => {
             let lhs_info = dfs(lhs, scope, ctx)?;
-            if lhs_info.ty.name == "#FUNC_SIZE#" {
+            if lhs_info.ty.name == "#METHOD_SIZE#" {
                 if params.len() != 0 {
                     return Err(("Type Mismatch", sp.clone()));
                 }
                 return Ok(ExprInfo::normal_var("int"));
             }
-            if lhs_info.ty.name != "#FUNC#" {
+            if lhs_info.ty.name != "#FUNC#" && lhs_info.ty.name != "#METHOD#" {
                 return Err(("Undefined Identifier", sp.clone()));
             }
 
 
-            let (ret_ty, args) = lhs_info.func.unwrap();
+            let (ret_ty_, args) = lhs_info.func.unwrap();
 
             if args.len() != params.len() {
                 return Err(("Type Mismatch", sp.clone()));
             }
-            let my_type = ret_ty.clone();
+            let my_type = ret_ty_.clone();
+            *ret_ty = ret_ty_.clone();
             for (arg_ty, param) in args.iter().zip(params) {
                 let param_info = dfs(param, scope, ctx)?;
                 if *arg_ty != param_info.ty {
@@ -625,8 +638,11 @@ fn dfs<'a>(ast: &ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> R
             }
             Ok(ExprInfo::normal_var("string"))
         }
-        ASTNode::Ident(name, sp) => {
+        ASTNode::Ident(name, sp, idx, ty, layer) => {
             if let Some(res) = scope.find_ident(name) {
+                *idx = res.idx;
+                *ty = res.ty.clone();
+                *layer = res.layer;
                 Ok(res)
             } else {
                 Err(("Undefined Identifier", sp.clone()))

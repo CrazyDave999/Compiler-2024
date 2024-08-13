@@ -158,7 +158,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("{}\n", op);
         }
-        ASTNode::ArrayAccess(lhs, inner, _) => {
+        ASTNode::ArrayAccess(lhs, inner, _,_) => {
             show_indent(indent);
             print!("ArrayAccess\n");
             show_indent(indent);
@@ -168,7 +168,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             print!("Inner:\n");
             print_ast(inner, indent + 2);
         }
-        ASTNode::MemberAccess(lhs, name, _) => {
+        ASTNode::MemberAccess(lhs, name, _, _, _) => {
             show_indent(indent);
             print!("MemberAccess\n");
             show_indent(indent);
@@ -177,7 +177,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("{}\n", name);
         }
-        ASTNode::FuncCall(lhs, params, _) => {
+        ASTNode::FuncCall(lhs, params, _,_) => {
             show_indent(indent);
             print!("FuncCall\n");
             show_indent(indent);
@@ -299,7 +299,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print_ast(node, indent + 2);
             }
         }
-        ASTNode::Ident(name, _) => {
+        ASTNode::Ident(name, _, _, _, _) => {
             show_indent(indent);
             print!("Ident {}\n", name);
         }

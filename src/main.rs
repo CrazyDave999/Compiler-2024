@@ -26,8 +26,8 @@ fn syntax_only_oj() -> Result<(), Box<dyn std::error::Error>> {
 
     match ast::MxParser::parse(ast::Rule::file, &input) {
         Ok(pairs) => {
-            let ast = ast::build_tree(pairs.into_iter().next().unwrap());
-            match semantic::check(&ast) {
+            let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            match semantic::check(&mut ast) {
                 Ok(_) => (),
                 Err(e) => fail(e.0)
             }
@@ -41,8 +41,8 @@ fn syntax_only_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     let input = fs::read_to_string(file).unwrap();
     match ast::MxParser::parse(ast::Rule::file, &input) {
         Ok(pairs) => {
-            let ast = ast::build_tree(pairs.into_iter().next().unwrap());
-            match semantic::check(&ast) {
+            let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            match semantic::check(&mut ast) {
                 Ok(_) => (),
                 Err(e) => fail(e.0)
             }
@@ -56,10 +56,10 @@ pub fn detailed_debug(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     let input = fs::read_to_string(file)?;
     match ast::MxParser::parse(ast::Rule::file, &input) {
         Ok(pairs) => {
-            let ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
             visualize::print_tree(&ast);
 
-            match semantic::check(&ast) {
+            match semantic::check(&mut ast) {
                 Ok(_) => Ok(()),
                 Err((msg, span)) => {
                     println!("\nError: {}\n", msg);
@@ -108,13 +108,11 @@ fn emit_llvm(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     let input = fs::read_to_string(file)?;
     match ast::MxParser::parse(ast::Rule::file, &input) {
         Ok(pairs) => {
-            let ast = ast::build_tree(pairs.into_iter().next().unwrap());
-            match semantic::check(&ast) {
+            let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    for ir in ir_nodes {
-                        print!("{}", ir);
-                    }
+                    ir::print_ir(ir_nodes);
                     Ok(())
                 }
                 Err((msg, span)) => {

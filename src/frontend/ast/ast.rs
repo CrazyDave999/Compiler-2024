@@ -200,17 +200,17 @@ fn visit_new_expr(pair: Pair<Rule>) -> ASTNode {
 
             let my_type = init_inner_pairs.next().unwrap().as_str();
 
-            let mut exprs = vec![];
+            let mut expr_arr = vec![];
             let mut array_const = None;
             for inner_pair in init_inner_pairs {
                 match inner_pair.as_rule() {
-                    Rule::expr => exprs.push(Some(visit_expr(inner_pair))),
-                    Rule::blank_bracket => exprs.push(None),
+                    Rule::expr => expr_arr.push(Some(visit_expr(inner_pair))),
+                    Rule::blank_bracket => expr_arr.push(None),
                     Rule::arr_const => array_const = Some(Box::new(visit_arr_const(inner_pair))),
                     _ => { unreachable!() }
                 }
             }
-            ASTNode::ArrayInit(my_type, exprs, array_const, span)
+            ASTNode::ArrayInit(my_type, expr_arr, array_const, span)
         }
         _ => { unreachable!() }
     }
@@ -349,11 +349,11 @@ fn visit_suffix_expr(pair: Pair<Rule>) -> ASTNode {
             }
             Rule::array_access => {
                 let access_inner_pair = inner_pair.into_inner().next().unwrap();
-                lhs = ASTNode::ArrayAccess(Box::new(lhs), Box::new(visit_expr(access_inner_pair)), span);
+                lhs = ASTNode::ArrayAccess(Box::new(lhs), Box::new(visit_expr(access_inner_pair)), span, Type::void());
             }
             Rule::member_access => {
                 let access_inner_pair = inner_pair.into_inner().next().unwrap();
-                lhs = ASTNode::MemberAccess(Box::new(lhs), access_inner_pair.as_str(), span);
+                lhs = ASTNode::MemberAccess(Box::new(lhs), access_inner_pair.as_str(), span, -1, Type::void());
             }
             Rule::func_call => {
                 let params_inner_pair = inner_pair.into_inner().next().unwrap();
@@ -361,7 +361,7 @@ fn visit_suffix_expr(pair: Pair<Rule>) -> ASTNode {
                 for param_pair in params_inner_pair.into_inner() {
                     params.push(visit_expr(param_pair));
                 }
-                lhs = ASTNode::FuncCall(Box::new(lhs), params, span);
+                lhs = ASTNode::FuncCall(Box::new(lhs), params, span, Type::void());
             }
             _ => unreachable!()
         }
@@ -376,7 +376,7 @@ fn visit_atom(pair: Pair<Rule>) -> ASTNode {
         Rule::this => ASTNode::ThisExpr(span),
         Rule::CONST => visit_const(inner_pair),
         Rule::fmt_string => visit_fmt_string(inner_pair),
-        Rule::ident => ASTNode::Ident(inner_pair.as_str(), span),
+        Rule::ident => ASTNode::Ident(inner_pair.as_str(), span, -1, Type::void(), -1),
         Rule::expr => visit_expr(inner_pair),
         _ => unreachable!()
     }

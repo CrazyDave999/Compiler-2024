@@ -17,6 +17,8 @@ pub struct ExprInfo<'a> {
     pub ty: Type<'a>,
     pub is_left: bool,
     pub func: Option<(Type<'a>, Vec<Type<'a>>)>, // ret type, args
+    pub idx: i32, // for IR, 不是-1说明是成员
+    pub layer: i32, // for IR
 }
 
 impl<'a> ExprInfo<'a> {
@@ -25,6 +27,8 @@ impl<'a> ExprInfo<'a> {
             ty: Type::void(),
             is_left: false,
             func: None,
+            idx: -1,
+            layer: -1,
         }
     }
 
@@ -33,6 +37,8 @@ impl<'a> ExprInfo<'a> {
             ty: Type { name, dim: 0 },
             is_left: false,
             func: None,
+            idx: -1,
+            layer: -1,
         }
     }
     pub fn normal(ty: Type<'a>) -> Self {
@@ -40,6 +46,8 @@ impl<'a> ExprInfo<'a> {
             ty,
             is_left: false,
             func: None,
+            idx: -1,
+            layer: -1,
         }
     }
 
@@ -48,6 +56,8 @@ impl<'a> ExprInfo<'a> {
             ty,
             is_left: true,
             func: None,
+            idx: -1,
+            layer: -1,
         }
     }
 }
