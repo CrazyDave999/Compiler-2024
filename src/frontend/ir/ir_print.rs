@@ -32,7 +32,11 @@ declare dso_local ptr @allocPtr(i32)
         if let IRNode::FuncEnd = node {
             indent -= 2;
         }
-        write!(file, "{}{}", " ".repeat(indent), node)?;
+        if let IRNode::Label(_)=node{
+            write!(file, "{}", node)?;
+        }else {
+            write!(file, "{}{}", " ".repeat(indent), node)?;
+        }
         if let IRNode::FuncBegin(_, _, _) = node {
             indent += 2;
         }

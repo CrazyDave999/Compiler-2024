@@ -17,6 +17,7 @@ pub enum IRNode {
     Call(Option<String>, IRType, String, Vec<(IRType, String)>), // res, res_ty, func_name, args
     Phi(String, IRType, Vec<(String, String)>), // res, ty, vars and labels
     Select(String, String, IRType, String, String), // res, cond, ty, val1, val2
+    Label(String),
 }
 
 impl Display for IRNode {
@@ -115,6 +116,9 @@ impl Display for IRNode {
                     ty,
                     val2
                 )
+            }
+            IRNode::Label(label) => {
+                write!(f, "{}:\n", label)
             }
         }
     }

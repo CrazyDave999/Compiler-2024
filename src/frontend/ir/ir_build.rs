@@ -6,6 +6,9 @@ use super::ast::ASTNode;
 struct Context {
     index: i32,
     cnt: i32, // 中间变量
+    if_cnt: i32,
+    for_cnt: i32,
+    while_cnt: i32,
     class_name: Option<String>,
     size_map: HashMap<String, i32>,
 }
@@ -14,6 +17,9 @@ impl Context {
         Context {
             index: 0,
             cnt: 0,
+            if_cnt: 0,
+            for_cnt: 0,
+            while_cnt: 0,
             class_name: None,
             size_map: HashMap::new(),
         }
@@ -66,6 +72,23 @@ impl Context {
         let res = self.cnt;
         self.cnt += 1;
         format!("%v{}", res)
+    }
+
+    pub fn generate_if(&mut self) -> String {
+        let res = self.if_cnt;
+        self.if_cnt += 1;
+        res.to_string()
+    }
+
+    pub fn generate_for(&mut self) -> String {
+        let res = self.for_cnt;
+        self.for_cnt += 1;
+        res.to_string()
+    }
+    pub fn generate_while(&mut self) -> String {
+        let res = self.while_cnt;
+        self.while_cnt += 1;
+        res.to_string()
     }
 
     pub fn insert_class_size(&mut self, name: &str, size: i32) {
@@ -311,6 +334,34 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
                         lhs_ty: IRType::void(),
                     }
                 }
+                "<" | "<=" | ">" | ">=" | "==" | "!=" => {
+                    let res_ty = IRType::i1();
+                    let lhs_ir_name = lhs_info.get_right_ir_name(ctx, func_defs);
+                    let rhs_ir_name = rhs_info.get_right_ir_name(ctx, func_defs);
+                    let res_name = ctx.generate();
+                    func_defs.push(IRNode::ICMP(
+                        res_name.clone(),
+                        match *op {
+                            "<" => "slt",
+                            "<=" => "sle",
+                            ">" => "sgt",
+                            ">=" => "sge",
+                            "==" => "eq",
+                            "!=" => "ne",
+                            _ => unreachable!(),
+                        }.to_string(),
+                        lhs_info.ty.clone(),
+                        lhs_ir_name,
+                        rhs_ir_name,
+                    ));
+                    IRInfo {
+                        ty: res_ty,
+                        left_ir_name: String::from(""),
+                        right_ir_name: Some(res_name),
+                        lhs_ir_name: None,
+                        lhs_ty: IRType::void(),
+                    }
+                }
                 "=" => {
                     let rhs_ir_name = rhs_info.get_right_ir_name(ctx, func_defs);
                     func_defs.push(IRNode::Store(
@@ -417,6 +468,91 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
                 lhs_ir_name: None,
                 lhs_ty: IRType::void(),
             }
+        }
+        ASTNode::IfStmt(cond, if_block, else_block, _) => {
+            let cond_info = dfs(cond, ctx, class_defs, var_decls, func_defs);
+            let cond_ir_name = cond_info.get_right_ir_name(ctx, func_defs);
+            let if_cnt = ctx.generate_if();
+            let if_label = format!("if.then.{}", if_cnt);
+            let else_label = format!("if.else.{}", if_cnt);
+            let end_label = format!("if.end.{}", if_cnt);
+            func_defs.push(IRNode::BrCond(
+                cond_ir_name,
+                if_label.clone(),
+                match else_block {
+                    Some(_) => else_label.clone(),
+                    None => end_label.clone(),
+                },
+            ));
+            func_defs.push(IRNode::Label(if_label.clone()));
+            dfs(if_block, ctx, class_defs, var_decls, func_defs);
+            func_defs.push(IRNode::Br(end_label.clone()));
+            if let Some(else_block) = else_block {
+                func_defs.push(IRNode::Label(else_label.clone()));
+                dfs(else_block, ctx, class_defs, var_decls, func_defs);
+                func_defs.push(IRNode::Br(end_label.clone()));
+            }
+            func_defs.push(IRNode::Label(end_label.clone()));
+            IRInfo::void()
+        }
+        ASTNode::ForStmt(expr1, expr2, expr3, block, _) => {
+            ctx.push();
+            let for_cnt = ctx.generate_for();
+            if let Some(expr1) = expr1 {
+                dfs(expr1, ctx, class_defs, var_decls, func_defs);
+            }
+            let cond_label = format!("for.cond.{}", for_cnt);
+            let body_label = format!("for.body.{}", for_cnt);
+            let inc_label = format!("for.inc.{}", for_cnt);
+            let end_label = format!("for.end.{}", for_cnt);
+            func_defs.push(IRNode::Br(cond_label.clone()));
+            func_defs.push(IRNode::Label(cond_label.clone()));
+            if let Some(expr2) = expr2 {
+                let cond_info = dfs(expr2, ctx, class_defs, var_decls, func_defs);
+                let cond_ir_name = cond_info.get_right_ir_name(ctx, func_defs);
+                func_defs.push(IRNode::BrCond(
+                    cond_ir_name,
+                    body_label.clone(),
+                    end_label.clone(),
+                ));
+            } else {
+                func_defs.push(IRNode::Br(body_label.clone()));
+            }
+            func_defs.push(IRNode::Label(body_label.clone()));
+            dfs(block, ctx, class_defs, var_decls, func_defs);
+            func_defs.push(IRNode::Br(inc_label.clone()));
+            func_defs.push(IRNode::Label(inc_label.clone()));
+            if let Some(expr3) = expr3 {
+                dfs(expr3, ctx, class_defs, var_decls, func_defs);
+            }
+            func_defs.push(IRNode::Br(cond_label.clone()));
+            func_defs.push(IRNode::Label(end_label.clone()));
+            ctx.pop();
+            IRInfo::void()
+        }
+        ASTNode::WhileStmt(cond,block,_)=>{
+            ctx.push();
+            let while_cnt = ctx.generate_while();
+            let cond_label = format!("while.cond.{}", while_cnt);
+            let body_label = format!("while.body.{}", while_cnt);
+            let end_label = format!("while.end.{}", while_cnt);
+            func_defs.push(IRNode::Br(cond_label.clone()));
+            func_defs.push(IRNode::Label(cond_label.clone()));
+            if let Some(cond)=cond{
+                let cond_info = dfs(cond, ctx, class_defs, var_decls, func_defs);
+                let cond_ir_name = cond_info.get_right_ir_name(ctx, func_defs);
+                func_defs.push(IRNode::BrCond(
+                    cond_ir_name,
+                    body_label.clone(),
+                    end_label.clone(),
+                ));
+            }
+            func_defs.push(IRNode::Label(body_label.clone()));
+            dfs(block, ctx, class_defs, var_decls, func_defs);
+            func_defs.push(IRNode::Br(cond_label.clone()));
+            func_defs.push(IRNode::Label(end_label.clone()));
+            ctx.pop();
+            IRInfo::void()
         }
         ASTNode::ReturnStmt(ret, _) => {
             if let Some(expr) = ret {
