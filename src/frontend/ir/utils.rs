@@ -23,6 +23,15 @@ impl IRType {
             }
         }
     }
+
+    pub fn from_str(name: &str) -> Self {
+        match name {
+            "int" => IRType::i32(),
+            "bool" => IRType::i1(),
+            "void" => IRType::void(),
+            _ => IRType::PTR(Box::from(IRType::class(name))),
+        }
+    }
     pub fn i32() -> Self {
         IRType::Var("i32".to_string(), vec![])
     }
@@ -35,13 +44,19 @@ impl IRType {
     }
 
     pub fn class(name: &str) -> Self {
-        IRType::Var(format!("%class.{}", name.to_string()), vec![])
+        IRType::Var(name.to_string(), vec![])
     }
 
     pub fn get_class_name(&self) -> String {
         match self {
             IRType::PTR(ty) => ty.get_class_name(),
             IRType::Var(name, _) => name.clone(),
+        }
+    }
+    pub fn get_ir_class_name(&self) -> String {
+        match self {
+            IRType::PTR(ty) => ty.get_ir_class_name(),
+            IRType::Var(name, _) => format!("%class.{}", name),
         }
     }
 

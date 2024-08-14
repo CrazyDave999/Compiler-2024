@@ -31,7 +31,7 @@ impl Display for IRNode {
             IRNode::FuncBegin(ret_ty, name, args) => {
                 write!(
                     f,
-                    "define {} {}({}) {{\nentry:\n",
+                    "define dso_local {} {}({}) {{\nentry:\n",
                     ret_ty,
                     name,
                     args.iter().map(
