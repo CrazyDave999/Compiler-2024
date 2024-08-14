@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use super::IRType;
 use super::IRNode;
 use super::ast::ASTNode;
@@ -6,6 +7,7 @@ struct Context {
     index: i32,
     cnt: i32, // 中间变量
     class_name: Option<String>,
+    size_map: HashMap<String, i32>,
 }
 impl Context {
     pub fn new() -> Self {
@@ -13,6 +15,7 @@ impl Context {
             index: 0,
             cnt: 0,
             class_name: None,
+            size_map: HashMap::new(),
         }
     }
     pub fn push(&mut self) {
@@ -43,12 +46,15 @@ impl Context {
             format!("@{}", name)
         }
     }
-    pub fn func_use(&self, name: &str, class_name: Option<&str>) -> String {
+    pub fn func_use(&self, name: &str, class_name: Option<String>) -> String {
         if let Some(class_name) = class_name {
             format!("@{}.{}", class_name, name)
         } else {
             format!("@{}", name)
         }
+    }
+    pub fn class_use(&self, name: &str) -> String {
+        format!("%class.{}", name)
     }
     pub fn is_global(&self) -> bool {
         self.index == 0
@@ -58,20 +64,31 @@ impl Context {
         self.cnt += 1;
         format!("%{}", res)
     }
+
+    pub fn insert_class_size(&mut self, name: &str, size: i32) {
+        self.size_map.insert(name.to_string(), size);
+    }
+    pub fn size_of(&self, name: &str) -> i32 {
+        *self.size_map.get(name).unwrap()
+    }
 }
 
 struct IRInfo {
     pub ty: IRType,
-    pub ir_name: String,
+    pub left_ir_name: String,
+    pub right_ir_name: String,
     pub lhs_ir_name: Option<String>,
+    pub lhs_ty: IRType,
 }
 
 impl IRInfo {
     pub fn void() -> Self {
         IRInfo {
             ty: IRType::Var("void".to_string(), vec![]),
-            ir_name: String::from(""),
+            left_ir_name: String::from(""),
+            right_ir_name: String::from(""),
             lhs_ir_name: None,
+            lhs_ty: IRType::Var("void".to_string(), vec![]),
         }
     }
 }
@@ -107,16 +124,25 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
             ctx.class_name = Some(name.to_string());
             ctx.push();
             let mut fields = Vec::new();
+            let mut size = 0;
             for node in ch {
                 match node {
                     ASTNode::VarDecl(ty, vars, _) => {
                         for _ in 0..vars.len() {
-                            fields.push(IRType::from(ty));
+                            let ir_ty = IRType::from(ty);
+                            fields.push(ir_ty.clone());
+                            size += ir_ty.size();
                         }
                     }
-                    _ => {
-                        dfs(node, ctx, class_defs, var_decls, func_defs);
-                    }
+                    _ => {}
+                }
+            }
+            ctx.insert_class_size(name, size);
+            for node in ch {
+                match node {
+                    ASTNode::FuncDef(_, _, _, _, _) => { dfs(node, ctx, class_defs, var_decls, func_defs); }
+                    ASTNode::ConstrDef(_, _, _) => { dfs(node, ctx, class_defs, var_decls, func_defs); }
+                    _ => {}
                 }
             }
             ctx.pop();
@@ -128,8 +154,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
             ctx.push();
 
             let mut args_ = Vec::new();
-            if let Some(_) = ctx.class_name {
-                args_.push((IRType::PTR(String::from("this")), String::from("%this")));
+            if let Some(class_name) = ctx.class_name.as_ref() {
+                args_.push((IRType::PTR(Box::from(IRType::class(class_name))), String::from("%this")));
             }
             for (ty, name) in args {
                 args_.push((IRType::from(ty), ctx.param(name)));
@@ -157,9 +183,12 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
                     var_decls.push(IRNode::Global(ctx.global_var(name), IRType::from(ty), "0".to_string()));
                 }
             } else {
-                for (name, _) in vars {
+                for (name, expr) in vars {
                     func_defs.push(IRNode::Allocate(ctx.local_var_def(name), IRType::from(ty)));
-                    // 初始化？
+                    if let Some(expr) = expr {
+                        let expr_info = dfs(expr, ctx, class_defs, var_decls, func_defs);
+                        func_defs.push(IRNode::Store(IRType::from(ty), expr_info.right_ir_name, ctx.local_var_def(name)));
+                    }
                 }
             }
             IRInfo::void()
@@ -174,9 +203,28 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
         }
         ASTNode::ThisExpr(_) => {
             IRInfo {
-                ty: IRType::PTR(String::from("this")),
-                ir_name: String::from("%this"),
+                ty: IRType::PTR(Box::from(IRType::class(ctx.class_name.as_ref().unwrap()))),
+                left_ir_name: String::from(""),
+                right_ir_name: String::from("%this"),
                 lhs_ir_name: None,
+                lhs_ty: IRType::void(),
+            }
+        }
+        ASTNode::ClassInit(name, _) => {
+            let res_name = ctx.generate();
+            let res_ty = IRType::PTR(Box::from(IRType::class(name)));
+            func_defs.push(IRNode::Call(
+                Some(res_name.clone()),
+                res_ty.clone(),
+                String::from("@malloc"),
+                vec![(IRType::i32(), ctx.size_of(name).to_string())],
+            ));
+            IRInfo {
+                ty: res_ty.clone(),
+                left_ir_name: res_name.clone(),
+                right_ir_name: res_name,
+                lhs_ir_name: None,
+                lhs_ty: IRType::void(),
             }
         }
         ASTNode::BinaryExpr(op, lhs, rhs, _) => {
@@ -190,13 +238,15 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
                         res_name.clone(),
                         "add".to_string(),
                         res_ty.clone(),
-                        lhs_info.ir_name,
-                        rhs_info.ir_name,
+                        lhs_info.right_ir_name,
+                        rhs_info.right_ir_name,
                     ));
                     IRInfo {
                         ty: res_ty,
-                        ir_name: res_name,
+                        left_ir_name: String::from(""),
+                        right_ir_name: res_name,
                         lhs_ir_name: None,
+                        lhs_ty: IRType::void(),
                     }
                 }
                 "-" | "*" | "/" | "%" | "<<" | ">>" | "&" | "|" | "^" => {
@@ -217,14 +267,20 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
                             _ => unreachable!(),
                         }.to_string(),
                         res_ty.clone(),
-                        lhs_info.ir_name,
-                        rhs_info.ir_name,
+                        lhs_info.right_ir_name,
+                        rhs_info.right_ir_name,
                     ));
                     IRInfo {
                         ty: res_ty,
-                        ir_name: res_name,
+                        left_ir_name: String::from(""),
+                        right_ir_name: res_name,
                         lhs_ir_name: None,
+                        lhs_ty: IRType::void(),
                     }
+                }
+                "=" => {
+                    func_defs.push(IRNode::Store(lhs_info.ty.clone(), rhs_info.right_ir_name, lhs_info.left_ir_name));
+                    IRInfo::void()
                 }
                 _ => {
                     IRInfo::void()
@@ -239,43 +295,46 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
             func_defs.push(IRNode::GetElementPtr(
                 res_name.clone(),
                 res_ty.clone(),
-                lhs_info.ir_name,
-                vec![(IRType::i32(), String::from("0")), (IRType::i32(), expr_info.ir_name)],
+                lhs_info.right_ir_name,
+                vec![(IRType::i32(), String::from("0")), (IRType::i32(), expr_info.right_ir_name)],
             ));
             IRInfo {
                 ty: res_ty,
-                ir_name: res_name,
+                left_ir_name: String::from(""),
+                right_ir_name: res_name,
                 lhs_ir_name: None,
+                lhs_ty: IRType::void(),
             }
         }
         ASTNode::MemberAccess(lhs, name, _, idx, ty) => {
             let lhs_info = dfs(lhs, ctx, class_defs, var_decls, func_defs);
             match ty.name {
                 "#METHOD#" => {
-                    match lhs_info.ty {
-                        IRType::PTR(class_name) => {
-                            IRInfo {
-                                ty: IRType::from(ty),
-                                ir_name: ctx.func_use(*name, Some(&class_name)),
-                                lhs_ir_name: Some(lhs_info.ir_name),
-                            }
-                        }
-                        _ => unreachable!()
+                    IRInfo {
+                        ty: IRType::from(ty),
+                        left_ir_name: String::from(""),
+                        right_ir_name: ctx.func_use(*name, Some(lhs_info.ty.get_class_name())),
+                        lhs_ir_name: Some(lhs_info.right_ir_name),
+                        lhs_ty: lhs_info.ty,
                     }
                 }
                 _ => {
-                    let res_name = ctx.generate();
+                    let ptr_name = ctx.generate();
                     let res_ty = IRType::from(ty);
                     func_defs.push(IRNode::GetElementPtr(
-                        res_name.clone(),
-                        res_ty.clone(),
-                        lhs_info.ir_name,
+                        ptr_name.clone(),
+                        IRType::Var(lhs_info.ty.get_class_name(), vec![]),
+                        lhs_info.right_ir_name,
                         vec![(IRType::i32(), String::from("0")), (IRType::i32(), (*idx).to_string())],
                     ));
+                    let res_name = ctx.generate();
+                    func_defs.push(IRNode::Load(res_name.clone(), res_ty.clone(), ptr_name.clone()));
                     IRInfo {
                         ty: res_ty,
-                        ir_name: res_name,
+                        left_ir_name: ptr_name.clone(),
+                        right_ir_name: res_name.clone(),
                         lhs_ir_name: None,
+                        lhs_ty: lhs_info.ty,
                     }
                 }
             }
@@ -283,27 +342,26 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
         ASTNode::FuncCall(lhs, params, _, ret_ty) => {
             let lhs_info = dfs(lhs, ctx, class_defs, var_decls, func_defs);
             let mut args = Vec::new();
-            match lhs_info.ty {
-                IRType::PTR(name) => {
-                    if name == "#METHOD#" {
-                        args.push((IRType::PTR(String::from("")), lhs_info.lhs_ir_name.unwrap()));
-                    }
-                }
-                _ => {}
+            if let Some(class_name) = lhs_info.lhs_ir_name {
+                args.push((lhs_info.lhs_ty, class_name));
             }
             for param in params {
                 let param_info = dfs(param, ctx, class_defs, var_decls, func_defs);
-                args.push((param_info.ty, param_info.ir_name));
+                args.push((param_info.ty, param_info.right_ir_name));
             }
             let res_name = ctx.generate();
             let res_ty = IRType::from(ret_ty);
-            func_defs.push(IRNode::Call(Some(res_name.clone()), res_ty.clone(), lhs_info.ir_name, args));
+            if ret_ty.is_void() {
+                func_defs.push(IRNode::Call(None, res_ty.clone(), lhs_info.right_ir_name, args));
+            } else {
+                func_defs.push(IRNode::Call(Some(res_name.clone()), res_ty.clone(), lhs_info.right_ir_name, args));
+            }
             IRInfo::void()
         }
         ASTNode::ReturnStmt(ret, _) => {
             if let Some(expr) = ret {
                 let expr_info = dfs(expr, ctx, class_defs, var_decls, func_defs);
-                func_defs.push(IRNode::Ret(expr_info.ty, Some(expr_info.ir_name)));
+                func_defs.push(IRNode::Ret(expr_info.ty, Some(expr_info.right_ir_name)));
                 IRInfo::void()
             } else {
                 func_defs.push(IRNode::Ret(IRType::Var(String::from("void"), vec![]), None));
@@ -313,57 +371,76 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context, class_defs: &mut Vec<IRNode>, v
         ASTNode::Int(val, _) => {
             IRInfo {
                 ty: IRType::i32(),
-                ir_name: val.to_string(),
+                left_ir_name: String::from(""),
+                right_ir_name: val.to_string(),
                 lhs_ir_name: None,
+                lhs_ty: IRType::void(),
             }
         }
         ASTNode::Bool(b, _) => {
             IRInfo {
                 ty: IRType::i1(),
-                ir_name: match b {
+                left_ir_name: String::from(""),
+                right_ir_name: match b {
                     true => "1".to_string(),
                     false => "0".to_string(),
                 },
                 lhs_ir_name: None,
+                lhs_ty: IRType::void(),
             }
         }
 
         ASTNode::Ident(name, _, idx, ty, layer) => {
             if *idx != -1 {
                 // 成员
-                let res_name = ctx.generate();
+                let ptr_name = ctx.generate();
                 let res_ty = IRType::from(ty);
                 func_defs.push(IRNode::GetElementPtr(
-                    res_name.clone(),
-                    res_ty.clone(),
+                    ptr_name.clone(),
+                    IRType::class(ctx.class_name.as_ref().unwrap()),
                     String::from("%this"),
                     vec![(IRType::i32(), String::from("0")), (IRType::i32(), (*idx).to_string())],
                 ));
+                let res_name = ctx.generate();
+                func_defs.push(IRNode::Load(res_name.clone(), res_ty.clone(), ptr_name.clone()));
                 IRInfo {
                     ty: res_ty,
-                    ir_name: res_name,
+                    left_ir_name: ptr_name.clone(),
+                    right_ir_name: res_name.clone(),
                     lhs_ir_name: None,
+                    lhs_ty: IRType::void(),
                 }
             } else {
-                let res_name = ctx.generate();
                 match ty.name {
-                    "#FUNC#" | "#METHOD#" => {}
-                    _ => {
-                        func_defs.push(IRNode::Load(res_name.clone(), IRType::from(ty), ctx.local_var_use(name,*layer)));
+                    "#FUNC#" => {
+                        IRInfo {
+                            ty: IRType::from(ty),
+                            left_ir_name: String::from(""),
+                            right_ir_name: ctx.func_use(name, None),
+                            lhs_ir_name: None,
+                            lhs_ty: IRType::void(),
+                        }
                     }
-                }
-
-                IRInfo {
-                    ty: IRType::from(ty),
-                    ir_name: match ty.name {
-                        "#FUNC#" => ctx.func_use(name, None),
-                        "#METHOD#" => ctx.func_use(name, Some(ctx.class_name.as_ref().unwrap())),
-                        _ => res_name,
-                    },
-                    lhs_ir_name: match ty.name {
-                        "#METHOD#" => Some(String::from("%this")),
-                        _ => None,
-                    },
+                    "#METHOD#" => {
+                        IRInfo {
+                            ty: IRType::from(ty),
+                            left_ir_name: String::from(""),
+                            right_ir_name: ctx.func_use(name, Some(ctx.class_name.clone().unwrap())),
+                            lhs_ir_name: Some(String::from("%this")),
+                            lhs_ty: IRType::void(),
+                        }
+                    }
+                    _ => {
+                        let res_name = ctx.generate();
+                        func_defs.push(IRNode::Load(res_name.clone(), IRType::from(ty), ctx.local_var_use(name, *layer)));
+                        IRInfo {
+                            ty: IRType::from(ty),
+                            left_ir_name: ctx.local_var_use(name, *layer),
+                            right_ir_name: res_name,
+                            lhs_ir_name: None,
+                            lhs_ty: IRType::void(),
+                        }
+                    }
                 }
             }
         }

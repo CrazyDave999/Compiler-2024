@@ -112,7 +112,7 @@ fn emit_llvm(file: &str) -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    ir::print_ir(ir_nodes);
+                    ir::print_ir(ir_nodes).expect("FUCK YOU PRINT_IR!");
                     Ok(())
                 }
                 Err((msg, span)) => {

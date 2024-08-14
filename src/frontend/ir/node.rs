@@ -81,8 +81,11 @@ impl Display for IRNode {
             IRNode::Call(res, res_ty, name, args) => {
                 write!(
                     f,
-                    "{} = call {} {}({})\n",
-                    res.clone().unwrap_or("".to_string()),
+                    "{}call {} {}({})\n",
+                    match res {
+                        Some(res) => format!("{} = ", res),
+                        None => "".to_string()
+                    },
                     res_ty,
                     name,
                     args.iter().map(
