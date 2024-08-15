@@ -471,7 +471,8 @@ fn visit_bool(pair: Pair<'_, Rule>) -> ASTNode {
 }
 fn visit_str(pair: Pair<Rule>) -> ASTNode {
     let span = pair.as_span();
-    ASTNode::Str(pair.as_str(), span)
+    let s = pair.as_str();
+    ASTNode::Str(&s[1..s.len() - 1], span)
 }
 
 fn visit_arr_const(pair: Pair<Rule>) -> ASTNode {
