@@ -1,156 +1,211 @@
-; ModuleID = 'builtin.c'
-source_filename = "builtin.c"
-target datalayout = "e-m:e-p:32:32-i64:64-n32-S128"
 target triple = "riscv32-unknown-unknown-elf"
 
 @.str = private unnamed_addr constant [3 x i8] c"%s\00", align 1
-@.str.1 = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
 @.str.2 = private unnamed_addr constant [3 x i8] c"%d\00", align 1
 @.str.3 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
 
-; Function Attrs: noinline nounwind optnone
-define dso_local void @print(ptr noundef %0) #0 {
-  %2 = alloca ptr, align 4
-  store ptr %0, ptr %2, align 4
-  %3 = load ptr, ptr %2, align 4
-  %4 = call i32 (ptr, ...) @printf(ptr noundef @.str, ptr noundef %3) #2
+define dso_local void @print(ptr noundef %0) local_unnamed_addr #0  {
+  
+  %2 = tail call i32 (ptr, ...) @printf(ptr noundef nonnull @.str, ptr noundef %0)
   ret void
 }
 
-declare dso_local i32 @printf(ptr noundef, ...) #1
+declare dso_local noundef i32 @printf(ptr nocapture noundef readonly, ...) local_unnamed_addr #1
 
-; Function Attrs: noinline nounwind optnone
-define dso_local void @println(ptr noundef %0) #0 {
-  %2 = alloca ptr, align 4
-  store ptr %0, ptr %2, align 4
-  %3 = load ptr, ptr %2, align 4
-  %4 = call i32 (ptr, ...) @printf(ptr noundef @.str.1, ptr noundef %3) #2
+define dso_local void @println(ptr nocapture noundef readonly %0) local_unnamed_addr #0  {
+  
+  %2 = tail call i32 @puts(ptr nonnull dereferenceable(1) %0)
   ret void
 }
 
-; Function Attrs: noinline nounwind optnone
-define dso_local void @printInt(i32 noundef %0) #0 {
-  %2 = alloca i32, align 4
-  store i32 %0, ptr %2, align 4
-  %3 = load i32, ptr %2, align 4
-  %4 = call i32 (ptr, ...) @printf(ptr noundef @.str.2, i32 noundef %3) #2
+define dso_local void @printInt(i32 noundef %0) local_unnamed_addr #0  {
+  
+  %2 = tail call i32 (ptr, ...) @printf(ptr noundef nonnull @.str.2, i32 noundef %0)
   ret void
 }
 
-; Function Attrs: noinline nounwind optnone
-define dso_local void @printlnInt(i32 noundef %0) #0 {
-  %2 = alloca i32, align 4
-  store i32 %0, ptr %2, align 4
-  %3 = load i32, ptr %2, align 4
-  %4 = call i32 (ptr, ...) @printf(ptr noundef @.str.3, i32 noundef %3) #2
+define dso_local void @printlnInt(i32 noundef %0) local_unnamed_addr #0  {
+  
+  %2 = tail call i32 (ptr, ...) @printf(ptr noundef nonnull @.str.3, i32 noundef %0)
   ret void
 }
 
-; Function Attrs: noinline nounwind optnone
-define dso_local ptr @getString() #0 {
-  %1 = alloca ptr, align 4
-  %2 = call ptr @malloc(i32 noundef 4096) #2
-  store ptr %2, ptr %1, align 4
-  %3 = load ptr, ptr %1, align 4
-  %4 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %3) #3
-  %5 = load ptr, ptr %1, align 4
-  ret ptr %5
+define dso_local ptr @getString() local_unnamed_addr #0  {
+  %1 = tail call dereferenceable_or_null(4096) ptr @malloc(i32 noundef 4096) #11
+  
+  %2 = tail call i32 (ptr, ...) @scanf(ptr noundef nonnull @.str, ptr noundef %1)
+  ret ptr %1
 }
 
-declare dso_local ptr @malloc(i32 noundef) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #2
 
-declare dso_local i32 @scanf(ptr noundef, ...) #1
+declare dso_local noalias noundef ptr @malloc(i32 noundef) local_unnamed_addr #3
 
-; Function Attrs: noinline nounwind optnone
-define dso_local i32 @getInt() #0 {
+declare dso_local noundef i32 @scanf(ptr nocapture noundef readonly, ...) local_unnamed_addr #1
+
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #2
+
+define dso_local i32 @getInt() local_unnamed_addr #0  {
   %1 = alloca i32, align 4
-  %2 = call i32 (ptr, ...) @scanf(ptr noundef @.str.2, ptr noundef %1) #3
+  
+  
+  %2 = call i32 (ptr, ...) @scanf(ptr noundef nonnull @.str.2, ptr noundef nonnull %1)
   %3 = load i32, ptr %1, align 4
+  
+  
   ret i32 %3
 }
 
-; Function Attrs: noinline nounwind optnone
-define dso_local ptr @toString(i32 noundef %0) #0 {
-  %2 = alloca i32, align 4
-  %3 = alloca ptr, align 4
-  store i32 %0, ptr %2, align 4
-  %4 = call ptr @malloc(i32 noundef 16) #2
-  store ptr %4, ptr %3, align 4
-  %5 = load ptr, ptr %3, align 4
-  %6 = load i32, ptr %2, align 4
-  %7 = call i32 (ptr, ptr, ...) @sprintf(ptr noundef %5, ptr noundef @.str.2, i32 noundef %6) #3
-  %8 = load ptr, ptr %3, align 4
-  ret ptr %8
+define dso_local noalias ptr @toString(i32 noundef %0) local_unnamed_addr #0  {
+  
+  %2 = tail call dereferenceable_or_null(64) ptr @malloc(i32 noundef 64) #11
+  
+  %3 = tail call i32 (ptr, ptr, ...) @sprintf(ptr noundef nonnull dereferenceable(1) %2, ptr noundef nonnull @.str.2, i32 noundef %0)
+  ret ptr %2
 }
 
-declare dso_local i32 @sprintf(ptr noundef, ptr noundef, ...) #1
+declare dso_local noundef i32 @sprintf(ptr noalias nocapture noundef writeonly, ptr nocapture noundef readonly, ...) local_unnamed_addr #1
 
-; Function Attrs: noinline nounwind optnone
-define dso_local ptr @string.string() #0 {
-  %1 = alloca ptr, align 4
-  %2 = call ptr @malloc(i32 noundef 1) #2
-  store ptr %2, ptr %1, align 4
-  %3 = load ptr, ptr %1, align 4
-  %4 = getelementptr inbounds i8, ptr %3, i32 0
-  store i8 0, ptr %4, align 1
-  %5 = load ptr, ptr %1, align 4
+define dso_local noalias nonnull ptr @allocPtr(i32 noundef %0) local_unnamed_addr #4  {
+  
+  %2 = shl i32 %0, 2
+  %3 = add nsw i32 %2, 4
+  %4 = tail call ptr @malloc(i32 noundef %3) #11
+  
+  store i32 %0, ptr %4, align 4
+  %5 = getelementptr inbounds i32, ptr %4, i32 1
   ret ptr %5
 }
 
-; Function Attrs: noinline nounwind optnone
-define dso_local i32 @string.length(ptr noundef %0) #0 {
-  %2 = alloca ptr, align 4
-  store ptr %0, ptr %2, align 4
-  %3 = load ptr, ptr %2, align 4
-  %4 = call i32 @strlen(ptr noundef %3) #2
+define dso_local i32 @string.length(ptr nocapture noundef readonly %0) local_unnamed_addr #5  {
+  
+  %2 = tail call i32 @strlen(ptr noundef nonnull dereferenceable(1) %0)
+  ret i32 %2
+}
+
+declare dso_local i32 @strlen(ptr nocapture noundef) local_unnamed_addr #6
+
+define dso_local noalias ptr @string.substring(ptr nocapture noundef readonly %0, i32 noundef %1, i32 noundef %2) local_unnamed_addr #4  {
+  
+  
+  
+  %4 = sub nsw i32 %2, %1
+  %5 = add nsw i32 %4, 2
+  %6 = tail call ptr @malloc(i32 noundef %5) #11
+  
+  %7 = getelementptr inbounds i8, ptr %0, i32 %1
+  %8 = add nsw i32 %4, 1
+  %9 = getelementptr inbounds i8, ptr %6, i32 %8
+  store i8 0, ptr %9, align 1
+  ret ptr %6
+}
+
+declare void @llvm.memcpy.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i32, i1 immarg) #7
+
+define dso_local i32 @string.parseInt(ptr nocapture noundef readonly %0) local_unnamed_addr #0  {
+  %2 = alloca i32, align 4
+  
+  
+  
+  %3 = call i32 (ptr, ptr, ...) @sscanf(ptr noundef %0, ptr noundef nonnull @.str.2, ptr noundef nonnull %2)
+  %4 = load i32, ptr %2, align 4
+  
+  
   ret i32 %4
 }
 
-declare dso_local i32 @strlen(ptr noundef) #1
+declare dso_local noundef i32 @sscanf(ptr nocapture noundef readonly, ptr nocapture noundef readonly, ...) local_unnamed_addr #1
 
-; Function Attrs: noinline nounwind optnone
-define dso_local ptr @string.substring(ptr noundef %0, i32 noundef %1, i32 noundef %2) #0 {
-  %4 = alloca ptr, align 4
-  %5 = alloca i32, align 4
-  %6 = alloca i32, align 4
-  %7 = alloca i32, align 4
-  %8 = alloca ptr, align 4
-  store ptr %0, ptr %4, align 4
-  store i32 %1, ptr %5, align 4
-  store i32 %2, ptr %6, align 4
-  %9 = load i32, ptr %6, align 4
-  %10 = load i32, ptr %5, align 4
-  %11 = sub nsw i32 %9, %10
-  store i32 %11, ptr %7, align 4
-  %12 = load i32, ptr %7, align 4
-  %13 = add nsw i32 %12, 1
-  %14 = call ptr @malloc(i32 noundef %13) #2
-  store ptr %14, ptr %8, align 4
-  %15 = load ptr, ptr %8, align 4
-  %16 = load ptr, ptr %4, align 4
-  %17 = load i32, ptr %5, align 4
-  %18 = getelementptr inbounds i8, ptr %16, i32 %17
-  %19 = load i32, ptr %7, align 4
-  %20 = call ptr @memcpy(ptr noundef %15, ptr noundef %18, i32 noundef %19) #2
-  %21 = load ptr, ptr %8, align 4
-  %22 = load i32, ptr %7, align 4
-  %23 = getelementptr inbounds i8, ptr %21, i32 %22
-  store i8 0, ptr %23, align 1
-  %24 = load ptr, ptr %8, align 4
-  ret ptr %24
+define dso_local i32 @string.ord(ptr nocapture noundef readonly %0, i32 noundef %1) local_unnamed_addr #8  {
+  
+  
+  %3 = getelementptr inbounds i8, ptr %0, i32 %1
+  %4 = load i8, ptr %3, align 1
+  %5 = zext i8 %4 to i32
+  ret i32 %5
 }
 
-declare dso_local ptr @memcpy(ptr noundef, ptr noundef, i32 noundef) #1
+define dso_local noalias ptr @string.add(ptr nocapture noundef readonly %0, ptr nocapture noundef readonly %1) local_unnamed_addr #4  {
+  
+  
+  %3 = tail call i32 @strlen(ptr noundef nonnull dereferenceable(1) %0)
+  
+  %4 = tail call i32 @strlen(ptr noundef nonnull dereferenceable(1) %1)
+  
+  %5 = add nsw i32 %4, %3
+  %6 = add nsw i32 %5, 1
+  %7 = tail call ptr @malloc(i32 noundef %6) #11
 
-; Function Attrs: noinline nounwind optnone
-define dso_local i32 @string.parseInt(ptr noundef %0) #0 {
-  %2 = alloca ptr, align 4
-  %3 = alloca i32, align 4
-  store ptr %0, ptr %2, align 4
-  %4 = load ptr, ptr %2, align 4
-  %5 = call i32 (ptr, ptr, ...) @sscanf(ptr noundef %4, ptr noundef @.str.2, ptr noundef %3) #3
-  %6 = load i32, ptr %3, align 4
-  ret i32 %6
+  %8 = getelementptr inbounds i8, ptr %7, i32 %3
+  %9 = add nsw i32 %4, 1
+  %10 = getelementptr inbounds i8, ptr %7, i32 %5
+  store i8 0, ptr %10, align 1
+  ret ptr %7
 }
 
-declare dso_local i32 @sscanf(ptr noundef, ptr noundef, ...) #1
+define dso_local zeroext i1 @string.eq(ptr nocapture noundef readonly %0, ptr nocapture noundef readonly %1) local_unnamed_addr #5  {
+  
+  
+  %3 = tail call i32 @strcmp(ptr noundef nonnull dereferenceable(1) %0, ptr noundef nonnull dereferenceable(1) %1)
+  %4 = icmp eq i32 %3, 0
+  ret i1 %4
+}
+
+declare dso_local i32 @strcmp(ptr nocapture noundef, ptr nocapture noundef) local_unnamed_addr #6
+
+define dso_local zeroext i1 @string.ne(ptr nocapture noundef readonly %0, ptr nocapture noundef readonly %1) local_unnamed_addr #5  {
+  
+  
+  %3 = tail call i32 @strcmp(ptr noundef nonnull dereferenceable(1) %0, ptr noundef nonnull dereferenceable(1) %1)
+  %4 = icmp ne i32 %3, 0
+  ret i1 %4
+}
+
+define dso_local zeroext i1 @string.lt(ptr nocapture noundef readonly %0, ptr nocapture noundef readonly %1) local_unnamed_addr #5  {
+  
+  
+  %3 = tail call i32 @strcmp(ptr noundef nonnull dereferenceable(1) %0, ptr noundef nonnull dereferenceable(1) %1)
+  %4 = icmp slt i32 %3, 0
+  ret i1 %4
+}
+
+define dso_local zeroext i1 @string.le(ptr nocapture noundef readonly %0, ptr nocapture noundef readonly %1) local_unnamed_addr #5  {
+  
+  
+  %3 = tail call i32 @strcmp(ptr noundef nonnull dereferenceable(1) %0, ptr noundef nonnull dereferenceable(1) %1)
+  %4 = icmp slt i32 %3, 1
+  ret i1 %4
+}
+
+define dso_local zeroext i1 @string.gt(ptr nocapture noundef readonly %0, ptr nocapture noundef readonly %1) local_unnamed_addr #5  {
+  
+  
+  %3 = tail call i32 @strcmp(ptr noundef nonnull dereferenceable(1) %0, ptr noundef nonnull dereferenceable(1) %1)
+  %4 = icmp sgt i32 %3, 0
+  ret i1 %4
+}
+
+define dso_local zeroext i1 @string.ge(ptr nocapture noundef readonly %0, ptr nocapture noundef readonly %1) local_unnamed_addr #5  {
+  
+  
+  %3 = tail call i32 @strcmp(ptr noundef nonnull dereferenceable(1) %0, ptr noundef nonnull dereferenceable(1) %1)
+  %4 = icmp sgt i32 %3, -1
+  ret i1 %4
+}
+
+
+declare dso_local noundef i32 @puts(ptr nocapture noundef readonly) local_unnamed_addr #10
+
+attributes #0 = { nofree nounwind "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
+attributes #1 = { nofree nounwind "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
+attributes #2 = { argmemonly mustprogress nocallback nofree nosync nounwind willreturn }
+attributes #3 = { inaccessiblememonly mustprogress nofree nounwind willreturn allockind("alloc,uninitialized") allocsize(0) "alloc-family"="malloc" "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
+attributes #4 = { mustprogress nofree nounwind willreturn "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
+attributes #5 = { argmemonly mustprogress nofree nounwind readonly willreturn "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
+attributes #6 = { argmemonly mustprogress nofree nounwind readonly willreturn "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
+attributes #7 = { argmemonly mustprogress nocallback nofree nounwind willreturn }
+attributes #8 = { argmemonly mustprogress nofree norecurse nosync nounwind readonly willreturn "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
+attributes #9 = { nocallback nofree nosync nounwind readnone speculatable willreturn }
+attributes #10 = { nofree nounwind }
+attributes #11 = { allocsize(0) }
+attributes #12 = { nounwind }

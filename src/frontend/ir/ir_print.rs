@@ -4,7 +4,9 @@ use super::IRNode;
 
 pub fn print_ir(ir: Vec<IRNode>) -> io::Result<()>{
     let mut file = File::create("test.ll")?;
-    writeln!(file, "
+    write!(file, "
+target triple = \"riscv32-unknown-unknown-elf\"
+
 declare dso_local void @print(ptr)
 declare dso_local void @println(ptr)
 declare dso_local void @printInt(i32)
@@ -18,12 +20,12 @@ declare dso_local ptr @string.substring(ptr, i32, i32)
 declare dso_local i32 @string.parseInt(ptr)
 declare dso_local i32 @string.ord(ptr, i32)
 declare dso_local ptr @string.add(ptr, ptr)
-declare dso_local i1 @string.equal(ptr, ptr)
-declare dso_local i1 @string.notEqual(ptr, ptr)
-declare dso_local i1 @string.less(ptr, ptr)
-declare dso_local i1 @string.lessOrEqual(ptr, ptr)
-declare dso_local i1 @string.greater(ptr, ptr)
-declare dso_local i1 @string.greaterOrEqual(ptr, ptr)
+declare dso_local i1 @string.eq(ptr, ptr)
+declare dso_local i1 @string.ne(ptr, ptr)
+declare dso_local i1 @string.lt(ptr, ptr)
+declare dso_local i1 @string.le(ptr, ptr)
+declare dso_local i1 @string.gt(ptr, ptr)
+declare dso_local i1 @string.ge(ptr, ptr)
 declare dso_local ptr @malloc(i32)
 declare dso_local ptr @allocPtr(i32)
     ")?;
