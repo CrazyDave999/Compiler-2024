@@ -18,6 +18,7 @@ struct Context {
 
     str_cnt: i32,
     land_cnt: i32,
+    lor_cnt: i32,
 
     class_name: Option<String>,
 
@@ -39,6 +40,7 @@ impl Context {
             loop_cnt: 0,
             str_cnt: 0,
             land_cnt: 0,
+            lor_cnt: 0,
             class_name: None,
             size_map: HashMap::new(),
             last_label: String::from(""),
@@ -120,6 +122,11 @@ impl Context {
     pub fn generate_land(&mut self) -> String {
         let res = self.land_cnt;
         self.land_cnt += 1;
+        res.to_string()
+    }
+    pub fn generate_lor(&mut self) -> String {
+        let res = self.lor_cnt;
+        self.lor_cnt += 1;
         res.to_string()
     }
 
@@ -518,7 +525,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 }
                 "&&" => {
                     let last_label = ctx.last_label.clone();
-                    let land_cnt = ctx.generate_land();
+                    let land_cnt = ctx.generate_lor();
                     let land_true_label = format!("land.true.{}", land_cnt);
                     let land_end_label = format!("land.end.{}", land_cnt);
                     let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
@@ -545,6 +552,43 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         ],
                     ));
                     ctx.last_label = land_end_label;
+                    IRInfo {
+                        ty: IRType::i1(),
+                        left_ir_name: String::from(""),
+                        right_ir_name: Some(res_name),
+                        lhs_ir_name: None,
+                        lhs_ty: IRType::void(),
+                    }
+                }
+                "||"=>{
+                    let last_label = ctx.last_label.clone();
+                    let lor_cnt = ctx.generate_lor();
+                    let lor_false_label = format!("lor.false.{}", lor_cnt);
+                    let lor_end_label = format!("lor.end.{}", lor_cnt);
+                    let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
+                    ctx.insert_statement(IRNode::BrCond(
+                        lhs_ir_name.clone(),
+                        lor_end_label.clone(),
+                        lor_false_label.clone(),
+                    ));
+                    ctx.insert_statement(IRNode::Label(lor_false_label.clone()));
+                    ctx.last_label = lor_false_label.clone();
+                    let rhs_info = dfs(rhs, ctx);
+                    let rhs_ir_name = rhs_info.get_right_ir_name(ctx);
+                    ctx.insert_statement(IRNode::Br(
+                        lor_end_label.clone(),
+                    ));
+                    ctx.insert_statement(IRNode::Label(lor_end_label.clone()));
+                    let res_name = ctx.generate();
+                    ctx.insert_statement(IRNode::Phi(
+                        res_name.clone(),
+                        IRType::i1(),
+                        vec![
+                            (String::from("true"), last_label),
+                            (rhs_ir_name, ctx.last_label.clone()),
+                        ],
+                    ));
+                    ctx.last_label = lor_end_label;
                     IRInfo {
                         ty: IRType::i1(),
                         left_ir_name: String::from(""),

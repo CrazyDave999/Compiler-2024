@@ -1,10 +1,8 @@
-use std::fs::File;
 use std::io::{self, Write};
 use super::IRNode;
 
-pub fn print_ir(ir: Vec<IRNode>) -> io::Result<()> {
-    let mut file = File::create("test.ll")?;
-    write!(file, "
+pub fn print_ir<W: Write>(ir: &Vec<IRNode>, os: &mut W) -> io::Result<()> {
+    write!(os, "
 target triple = \"riscv32-unknown-unknown-elf\"
 
 declare dso_local void @print(ptr)
@@ -37,9 +35,9 @@ declare dso_local i32 @CrazyDave..GetArraySize(ptr)
             indent -= 2;
         }
         if let IRNode::Label(_) = node {
-            write!(file, "{}", node)?;
+            write!(os, "{}", node)?;
         } else {
-            write!(file, "{}{}", " ".repeat(indent), node)?;
+            write!(os, "{}{}", " ".repeat(indent), node)?;
         }
         if let IRNode::FuncBegin(_, _, _) = node {
             indent += 2;

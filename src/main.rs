@@ -1,5 +1,6 @@
 use std::fs;
 use std::env;
+use std::fs::File;
 use std::io;
 use std::io::Read;
 use pest::{Parser, Span};
@@ -104,7 +105,7 @@ fn print_error_context(source: &str, span: &Span, msg: &str) {
     eprintln!("{}{}\n", " ".repeat(start_col + 6), msg);
 }
 
-fn emit_llvm(file: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn emit_llvm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     let input = fs::read_to_string(file)?;
     match ast::MxParser::parse(ast::Rule::file, &input) {
         Ok(pairs) => {
@@ -112,7 +113,8 @@ fn emit_llvm(file: &str) -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    ir::print_ir(ir_nodes).expect("FUCK YOU PRINT_IR!");
+                    let mut file = File::create("test.ll")?;
+                    ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
                     Ok(())
                 }
                 Err((msg, span)) => {
@@ -129,6 +131,29 @@ fn emit_llvm(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+fn emit_llvm_oj() -> Result<(), Box<dyn std::error::Error>> {
+    let mut input = String::new();
+    match io::stdin().read_to_string(&mut input) {
+        Ok(_) => (),
+        Err(e) => fail(&format!("Error reading input: {}", e))
+    }
+    match ast::MxParser::parse(ast::Rule::file, &input) {
+        Ok(pairs) => {
+            let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            match semantic::check(&mut ast) {
+                Ok(_) => {
+                    let ir_nodes = ir::build_ir(&ast);
+                    let mut stdout = io::stdout();
+                    ir::print_ir(&ir_nodes, &mut stdout).expect("FUCK YOU PRINT_IR!");
+                }
+                Err(e) => fail(e.0)
+            }
+        }
+        Err(_) => fail("Invalid Identifier")
+    }
+    Ok(())
+}
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_args: Vec<_> = env::args().collect();
@@ -139,7 +164,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "-fsyntax-only" => syntax_only_oj(),
         "-fsyntax-test" => syntax_only_test(env_args[2].as_str()),
         "-debug" => detailed_debug(env_args[2].as_str()),
-        "-emit-llvm" => emit_llvm(env_args[2].as_str()),
+        "-emit-test" => emit_llvm_test(env_args[2].as_str()),
+        "-emit-llvm" => emit_llvm_oj(),
         _ => {
             fail("Invalid Arguments");
             Ok(())
