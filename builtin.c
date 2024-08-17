@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 int printf(const char *pattern, ...);
 int sprintf(char *dest, const char *pattern, ...);
 int scanf(const char *pattern, ...);
@@ -42,10 +43,14 @@ char *toString(int n){
     return str;
 }
 
-void *allocPtr(int size){
+void *CrazyDave_AllocArray(int size){
     int *p = malloc((size << 2) + 4);
     p[0] = size;
     return p + 1;
+}
+
+int CrazyDave_GetArraySize(void *arr){
+    return ((int *)arr)[-1];
 }
 
 int string_length(char *str){
@@ -54,8 +59,8 @@ int string_length(char *str){
 
 char *string_substring(char *str, int left, int right){
     char *sub = malloc(right - left + 2);
-    memcpy(sub, str + left, right - left + 1);
-    sub[right - left + 1] = 0;
+    memcpy(sub, str + left, right - left);
+    sub[right - left] = 0;
     return sub;
 }
 

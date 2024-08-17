@@ -33,7 +33,7 @@ fn visit_var_decl(pair: Pair<'_, Rule>) -> ASTNode {
         } else {
             None
         };
-        vars.push((name, expr));
+        vars.push((name, expr, -1));
     }
     ASTNode::VarDecl(my_type, vars, span)
 }
@@ -49,7 +49,7 @@ fn visit_func_def(pair: Pair<'_, Rule>) -> ASTNode {
         let mut param_inner = param_list_pair.into_inner();
         while let Some(param_type) = param_inner.next() {
             let param_name = param_inner.next().unwrap().as_str();
-            params.push((visit_type(param_type), param_name));
+            params.push((visit_type(param_type), param_name, -1));
         }
     }
     let block = visit_block(inner_pairs.next().unwrap());
@@ -376,7 +376,7 @@ fn visit_atom(pair: Pair<Rule>) -> ASTNode {
         Rule::this => ASTNode::ThisExpr(span),
         Rule::CONST => visit_const(inner_pair),
         Rule::fmt_string => visit_fmt_string(inner_pair),
-        Rule::ident => ASTNode::Ident(inner_pair.as_str(), span, -1, Type::void(), -1),
+        Rule::ident => ASTNode::Ident(inner_pair.as_str(), span, -1, Type::void(), -1, false),
         Rule::expr => visit_expr(inner_pair),
         _ => unreachable!()
     }

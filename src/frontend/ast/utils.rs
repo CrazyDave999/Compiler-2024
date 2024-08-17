@@ -59,4 +59,7 @@ impl<'a> Type<'a> {
     pub fn method() -> Self {
         Type { name: "#METHOD#", dim: 0 }
     }
+    pub fn method_size() -> Self {
+        Type { name: "#METHOD_SIZE#", dim: 0 }
+    }
 }

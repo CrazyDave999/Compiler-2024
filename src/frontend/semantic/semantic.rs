@@ -50,7 +50,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                         }
 
                         let mut my_args = vec![];
-                        for (ty, _) in args {
+                        for (ty, _, _) in args {
                             if ty.is_void() {
                                 return Err(("Invalid Type", sp.clone()));
                             }
@@ -89,7 +89,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                                     if scope.find_class(ty.name).is_none() {
                                         return Err(("Undefined Identifier", sp.clone()));
                                     }
-                                    for (name, op) in ch {
+                                    for (name, op, _) in ch {
                                         if members.contains_key(name) {
                                             // 重复定义
                                             return Err(("Multiple Definitions", sp.clone()));
@@ -98,7 +98,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                                             // 类成员默认初始化表达式为非法
                                             return Err(("Class member default init", sp.clone()));
                                         }
-                                        members.insert(*name, Member::Var(ty.clone(), idx));
+                                        members.insert(*name, Member::Var(ty.clone(), idx, -1));
                                         idx += 1;
                                     }
                                 }
@@ -108,7 +108,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                                         return Err(("Multiple Definitions", sp.clone()));
                                     }
                                     let mut my_args = vec![];
-                                    for (ty, _) in args {
+                                    for (ty, _, _) in args {
                                         if ty.is_void() {
                                             return Err(("Invalid Type", sp.clone()));
                                         }
@@ -144,7 +144,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
             if scope.find_class(ty.name).is_none() {
                 return Err(("Undefined Identifier", sp.clone()));
             }
-            for (name, op) in ch {
+            for (name, op, cnt) in ch {
                 if let Some(_) = scope.find_ident_top(name) {
                     return Err(("Multiple Definitions", sp.clone()));
                 }
@@ -160,15 +160,15 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                         }
                     }
                 }
-                scope.insert_var(name, ty.clone(), -1);
+                *cnt = scope.insert_var(name, ty.clone(), -1);
             }
             Ok(ExprInfo::void())
         }
         ASTNode::FuncDef(ty, name, args, block, sp) => {
             // 考虑形参可以与函数重名
             scope.push(ScopeType::Func);
-            for (ty, name) in args {
-                scope.insert_var(name, ty.clone(), -1);
+            for (ty, name, cnt) in args {
+                *cnt = scope.insert_var(name, ty.clone(), -1);
             }
             dfs(block, scope, ctx)?;
             if !ty.is_void() && ctx.ret_types.is_empty() && *name != "main" {
@@ -212,13 +212,13 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
             for mem in &mut *ch {
                 match mem {
                     ASTNode::VarDecl(ty, ch, _) => {
-                        for (name, _) in ch {
+                        for (name, _, _) in ch {
                             scope.insert_var(name, ty.clone(), idx);
                             idx += 1;
                         }
                     }
                     ASTNode::FuncDef(ret_ty, name, args, _, _) => {
-                        let args = args.iter().map(|(ty, _)| ty.clone()).collect();
+                        let args = args.iter().map(|(ty, _, _)| ty.clone()).collect();
                         scope.insert_func(name, ret_ty, &args);
                     }
                     _ => {}
@@ -278,7 +278,8 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                     is_left: false,
                     func: None,
                     idx: -1,
-                    layer: -1,
+                    cnt: -1,
+                    is_global: false,
                 })
             } else {
                 return Err(("Undefined Identifier", sp.clone()));
@@ -462,7 +463,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
             if let Some(members) = scope.find_class(&lhs_info.ty.name) {
                 if let Some(member) = members.get(*name) {
                     match member {
-                        Member::Var(ty_, idx_) => {
+                        Member::Var(ty_, idx_, _) => {
                             *idx = *idx_;
                             *ty = ty_.clone();
                             Ok(ExprInfo::left(ty_.clone()))
@@ -474,13 +475,22 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                                 is_left: false,
                                 func: Some((ret_ty.clone(), args.clone())),
                                 idx: -1,
-                                layer: -1,
+                                cnt: -1,
+                                is_global: false,
                             })
                         }
                     }
                 } else {
                     if lhs_info.ty.dim > 0 && *name == "size" {
-                        return Ok(ExprInfo::normal_var("#METHOD_SIZE#"));
+                        *ty = Type::method_size();
+                        return Ok(ExprInfo {
+                            ty: Type::method_size(),
+                            is_left: false,
+                            func: Some((Type::int(), vec![])),
+                            idx: -1,
+                            cnt: -1,
+                            is_global: false,
+                        });
                     }
                     return Err(("Undefined Identifier", sp.clone()));
                 }
@@ -494,6 +504,8 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                 if params.len() != 0 {
                     return Err(("Type Mismatch", sp.clone()));
                 }
+                let (ret_ty_, _) = lhs_info.func.unwrap();
+                *ret_ty = ret_ty_.clone();
                 return Ok(ExprInfo::normal_var("int"));
             }
             if lhs_info.ty.name != "#FUNC#" && lhs_info.ty.name != "#METHOD#" {
@@ -638,11 +650,12 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
             }
             Ok(ExprInfo::normal_var("string"))
         }
-        ASTNode::Ident(name, sp, idx, ty, layer) => {
+        ASTNode::Ident(name, sp, idx, ty, cnt, is_global) => {
             if let Some(res) = scope.find_ident(name) {
                 *idx = res.idx;
                 *ty = res.ty.clone();
-                *layer = res.layer;
+                *cnt = res.cnt;
+                *is_global = res.is_global;
                 Ok(res)
             } else {
                 Err(("Undefined Identifier", sp.clone()))

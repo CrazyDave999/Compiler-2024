@@ -32,7 +32,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("VarDecl\n");
 
-            for (name, op) in ch {
+            for (name, op,_) in ch {
                 show_indent(indent);
                 print!("{} {}\n", ty, name);
                 if let Some(expr) = op {
@@ -51,7 +51,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("Args:\n");
             show_indent(indent);
-            for (ty, name) in arg_list {
+            for (ty, name,_) in arg_list {
                 print!("{} {},", ty, name);
             }
             print!("\n");
@@ -299,7 +299,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print_ast(node, indent + 2);
             }
         }
-        ASTNode::Ident(name, _, _, _, _) => {
+        ASTNode::Ident(name, _, _, _, _,_) => {
             show_indent(indent);
             print!("Ident {}\n", name);
         }

@@ -4,7 +4,7 @@ use super::utils::ExprInfo;
 
 #[derive(Clone)]
 pub(crate) enum Member<'a> {
-    Var(Type<'a>, i32),
+    Var(Type<'a>, i32, i32),
     Func(Type<'a>, Vec<Type<'a>>),
 }
 pub(crate) enum ScopeType<'a> {
@@ -31,6 +31,7 @@ impl<'a> ScopeLayer<'a> {
 pub(crate) struct Scope<'a> {
     layers: Vec<ScopeLayer<'a>>,
     class: HashMap<&'a str, HashMap<&'a str, Member<'a>>>, // members
+    pub cnt: i32,
 }
 // 找一个变量，先找类成员，再找当前作用域
 impl<'a> Scope<'a> {
@@ -38,6 +39,7 @@ impl<'a> Scope<'a> {
         let mut scope = Scope {
             layers: vec![ScopeLayer::new(ScopeType::Global)],
             class: HashMap::new(),
+            cnt: 0,
         };
 
         // builtin types
@@ -73,8 +75,11 @@ impl<'a> Scope<'a> {
         self.layers.last_mut().unwrap()
     }
 
-    pub fn insert_var(&mut self, name: &'a str, ty: Type<'a>, idx: i32) {
-        self.top().map.insert(name, Member::Var(ty, idx));
+    pub fn insert_var(&mut self, name: &'a str, ty: Type<'a>, idx: i32) -> i32 {
+        let cnt = self.cnt;
+        self.top().map.insert(name, Member::Var(ty, idx, cnt));
+        self.cnt += 1;
+        cnt
     }
 
     pub fn insert_func(&mut self, name: &'a str, ty: &Type<'a>, args: &Vec<Type<'a>>) {
@@ -86,16 +91,20 @@ impl<'a> Scope<'a> {
     }
 
     pub fn find_ident(&self, name: &'a str) -> Option<ExprInfo<'a>> {
-        for (i, layer) in self.layers.iter().rev().enumerate() {
+        for layer in self.layers.iter().rev() {
             if let Some(member) = layer.map.get(name) {
                 return match member {
-                    Member::Var(ty, idx) => {
+                    Member::Var(ty, idx, cnt) => {
                         Some(ExprInfo {
                             ty: ty.clone(),
                             is_left: true,
                             func: None,
                             idx: *idx,
-                            layer: (self.layers.len() - 1 - i) as i32,
+                            cnt: *cnt,
+                            is_global: match layer.ty {
+                                ScopeType::Global => true,
+                                _ => false
+                            }
                         })
                     }
                     Member::Func(ty, args) => {
@@ -108,7 +117,8 @@ impl<'a> Scope<'a> {
                             is_left: false,
                             func: Some((ty.clone(), args.clone())),
                             idx: -1,
-                            layer: (self.layers.len() - 1 - i) as i32,
+                            cnt: -1,
+                            is_global: false
                         })
                     }
                 };

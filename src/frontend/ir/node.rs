@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use super::IRType;
+#[derive(Clone)]
 pub enum IRNode {
     Class(String, Vec<IRType>), // name, fields
     Global(String, IRType, String), // name, ty, val

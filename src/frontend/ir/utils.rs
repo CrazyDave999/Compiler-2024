@@ -77,6 +77,26 @@ impl IRType {
             }
         }
     }
+
+    pub fn default_value(&self) -> Option<String> {
+        match self {
+            IRType::PTR(_) => Some("null".to_string()),
+            IRType::Var(name, _) => {
+                match name.as_str() {
+                    "i32" => Some("0".to_string()),
+                    "i1" => Some("0".to_string()),
+                    "void" => None,
+                    _ => unreachable!()
+                }
+            }
+        }
+    }
+    pub fn is_void(&self) -> bool {
+        match self {
+            IRType::Var(name, _) => name == "void",
+            _ => false,
+        }
+    }
 }
 
 impl Display for IRType {
