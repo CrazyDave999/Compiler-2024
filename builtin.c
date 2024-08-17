@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include<stdint.h>
 #include <stdbool.h>
 int printf(const char *pattern, ...);
 int sprintf(char *dest, const char *pattern, ...);

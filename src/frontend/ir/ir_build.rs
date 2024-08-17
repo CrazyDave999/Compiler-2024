@@ -214,6 +214,29 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
     match ast {
         ASTNode::Root(ch, _) => {
             for node in ch {
+                match node {
+                    ASTNode::ClassDef(name, ch, _) => {
+                        let mut fields = Vec::new();
+                        let mut size = 0;
+                        for node in ch {
+                            match node {
+                                ASTNode::VarDecl(ty, vars, _) => {
+                                    for _ in 0..vars.len() {
+                                        let ir_ty = IRType::from(ty);
+                                        fields.push(ir_ty.clone());
+                                        size += ir_ty.size();
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        ctx.insert_class_size(*name, size);
+                        ctx.class_defs.push(IRNode::Class(format!("%class.{}", *name), fields));
+                    }
+                    _ => {}
+                }
+            }
+            for node in ch {
                 dfs(node, ctx);
             }
             IRInfo::void()
@@ -221,31 +244,30 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
         ASTNode::ClassDef(name, ch, _) => {
             ctx.class_name = Some(name.to_string());
             ctx.push();
-            let mut fields = Vec::new();
-            let mut size = 0;
+
+            let mut has_constr = false;
             for node in ch {
                 match node {
-                    ASTNode::VarDecl(ty, vars, _) => {
-                        for _ in 0..vars.len() {
-                            let ir_ty = IRType::from(ty);
-                            fields.push(ir_ty.clone());
-                            size += ir_ty.size();
-                        }
+                    ASTNode::FuncDef(_, _, _, _, _) => { dfs(node, ctx); }
+                    ASTNode::ConstrDef(_, _, _) => {
+                        dfs(node, ctx);
+                        has_constr = true;
                     }
                     _ => {}
                 }
             }
-            ctx.insert_class_size(name, size);
-            for node in ch {
-                match node {
-                    ASTNode::FuncDef(_, _, _, _, _) => { dfs(node, ctx); }
-                    ASTNode::ConstrDef(_, _, _) => { dfs(node, ctx); }
-                    _ => {}
-                }
+            if !has_constr {
+                ctx.insert_statement(IRNode::FuncBegin(
+                    IRType::void(),
+                    ctx.func_def(name),
+                    vec![(IRType::PTR(Box::from(IRType::class(name))), String::from("%this"))],
+                ));
+                ctx.insert_statement(IRNode::Ret(IRType::void(), None));
+                ctx.insert_statement(IRNode::FuncEnd);
             }
             ctx.pop();
             ctx.class_name = None;
-            ctx.class_defs.push(IRNode::Class(format!("%class.{}", name), fields));
+
             IRInfo::void()
         }
         ASTNode::FuncDef(ret_ty, name, args, block, _) => {
@@ -384,6 +406,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 res_ty.clone(),
                 String::from("@malloc"),
                 vec![(IRType::i32(), ctx.size_of(name).to_string())],
+            ));
+            // 调用构造函数
+            ctx.insert_statement(IRNode::Call(
+                None,
+                IRType::void(),
+                ctx.func_use(name, Some(String::from(*name))),
+                vec![(IRType::PTR(Box::from(IRType::class(name))), res_name.clone())],
             ));
             IRInfo {
                 ty: res_ty.clone(),
@@ -525,7 +554,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 }
                 "&&" => {
                     let last_label = ctx.last_label.clone();
-                    let land_cnt = ctx.generate_lor();
+                    let land_cnt = ctx.generate_land();
                     let land_true_label = format!("land.true.{}", land_cnt);
                     let land_end_label = format!("land.end.{}", land_cnt);
                     let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
@@ -560,7 +589,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         lhs_ty: IRType::void(),
                     }
                 }
-                "||"=>{
+                "||" => {
                     let last_label = ctx.last_label.clone();
                     let lor_cnt = ctx.generate_lor();
                     let lor_false_label = format!("lor.false.{}", lor_cnt);
@@ -1010,14 +1039,15 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             }
         }
         ASTNode::Str(s, _) => {
+            let (escaped,l) = super::escape_string(*s);
             let str_cnt = ctx.generate_str();
             ctx.var_decls.push(IRNode::Str(
                 format!("@.str.{}", str_cnt),
-                IRType::Var(String::from("i8"), vec![s.len() as i32 + 1]),
-                String::from(*s),
+                IRType::Var(String::from("i8"), vec![l+1]),
+                escaped.clone(),
             ));
             IRInfo {
-                ty: IRType::PTR(Box::from(IRType::Var(String::from("i8"), vec![s.len() as i32 + 1]))),
+                ty: IRType::PTR(Box::from(IRType::Var(String::from("i8"), vec![l+1]))),
                 left_ir_name: format!("@.str.{}", str_cnt),
                 right_ir_name: Some(format!("@.str.{}", str_cnt)),
                 lhs_ir_name: None,
@@ -1145,7 +1175,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         ],
                     ));
                     lhs_name = add_name;
-                }else{
+                } else {
                     lhs_name = last_str_name;
                 }
             }
@@ -1193,7 +1223,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             left_ir_name: String::from(""),
                             right_ir_name: Some(ctx.func_use(name, Some(ctx.class_name.as_ref().unwrap().clone()))),
                             lhs_ir_name: Some(String::from("%this")),
-                            lhs_ty: IRType::void(),
+                            lhs_ty: IRType::PTR(Box::from(IRType::class(ctx.class_name.as_ref().unwrap().as_str()))),
                         }
                     }
                     _ => {
@@ -1305,6 +1335,15 @@ fn alloc_arr_by_sizes<'a>(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ct
                 IRType::PTR(Box::from(IRType::class(name))),
                 String::from("@malloc"),
                 vec![(IRType::i32(), ctx.size_of(name).to_string())],
+            ));
+            // 调用构造函数
+            ctx.insert_statement(IRNode::Call(
+                None,
+                IRType::void(),
+                ctx.func_use(name, Some(String::from(name))),
+                vec![
+                    (IRType::PTR(Box::from(IRType::class(name))), alloc_name.clone())
+                ],
             ));
             alloc_name
         };

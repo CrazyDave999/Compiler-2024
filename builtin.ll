@@ -41,22 +41,16 @@ define dso_local ptr @getString() local_unnamed_addr #2  {
   ret ptr %1
 }
 
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #3
-
 declare dso_local noalias noundef ptr @malloc(i32 noundef) local_unnamed_addr #4
 
 declare dso_local noundef i32 @scanf(ptr nocapture noundef readonly, ...) local_unnamed_addr #5
 
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #3
-
 define dso_local i32 @getInt() local_unnamed_addr #2  {
   %1 = alloca i32, align 4
-  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %1) #14
   
   %2 = call i32 (ptr, ...) @scanf(ptr noundef nonnull @.str.2, ptr noundef nonnull %1) #13
   %3 = load i32, ptr %1, align 4
-  
-  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %1) #14
+
   ret i32 %3
 }
 
@@ -121,12 +115,12 @@ declare  dso_local ptr @memcpy(ptr noundef, ptr noundef, i32 noundef) local_unna
 define dso_local i32 @string.parseInt(ptr nocapture noundef readonly %0) local_unnamed_addr #2  {
   %2 = alloca i32, align 4
   
-  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %2) #14
+  
   
   %3 = call i32 (ptr, ptr, ...) @sscanf(ptr noundef %0, ptr noundef nonnull @.str.2, ptr noundef nonnull %2) #13
   %4 = load i32, ptr %2, align 4
   
-  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %2) #14
+  
   ret i32 %4
 }
 
@@ -211,7 +205,6 @@ define dso_local zeroext i1 @string.ge(ptr nocapture noundef readonly %0, ptr no
   ret i1 %4
 }
 
-declare void @llvm.dbg.value(metadata, metadata, metadata) #10
 
 attributes #0 = { nounwind "frame-pointer"="none" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-printf" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }
 attributes #1 = { "frame-pointer"="none" "no-builtin-memcpy" "no-builtin-printf" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+a,+c,+d,+f,+m,+relax,-save-restore" }

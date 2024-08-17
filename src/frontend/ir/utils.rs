@@ -127,3 +127,14 @@ impl Display for IRType {
         }
     }
 }
+
+pub fn escape_string(input: &str) -> (String, i32) {
+    let c1 = input.matches("\\\"").count() as i32;
+    let c2 = input.matches("\\n").count() as i32;
+    let c3 = input.matches("\\\\").count() as i32;
+    let result = input
+        .replace("\\\"", "\\22")
+        .replace("\\n", "\\0A");
+
+    (result, input.len() as i32 - c1 - c2 - c3)
+}
