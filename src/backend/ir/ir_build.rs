@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use crate::frontend::ir::ir_build::LoopType::{For, Null, While};
 use super::IRType;
 use super::IRNode;
 use super::ast::ASTNode;
@@ -48,7 +47,7 @@ impl Context {
             var_decls: Vec::new(),
             func_defs: Vec::new(),
             global_init: Vec::new(),
-            cur_loop: (-1, Null),
+            cur_loop: (-1, LoopType::Null),
         };
         res
     }
@@ -523,24 +522,38 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             ));
                         }
                         IRType::PTR(_) => {
-                            // string
-                            ctx.insert_statement(IRNode::Call(
-                                Some(res_name.clone()),
-                                res_ty.clone(),
-                                match *op {
-                                    "==" => "@string.eq",
-                                    "!=" => "@string.ne",
-                                    "<" => "@string.lt",
-                                    "<=" => "@string.le",
-                                    ">" => "@string.gt",
-                                    ">=" => "@string.ge",
-                                    _ => unreachable!(),
-                                }.to_string(),
-                                vec![
-                                    (IRType::PTR(Box::from(IRType::class("string"))), lhs_ir_name),
-                                    (IRType::PTR(Box::from(IRType::class("string"))), rhs_ir_name),
-                                ],
-                            ));
+                            // ptr of string or ptr of other
+                            if lhs_info.ty.is_string() {
+                                ctx.insert_statement(IRNode::Call(
+                                    Some(res_name.clone()),
+                                    res_ty.clone(),
+                                    match *op {
+                                        "==" => "@string.eq",
+                                        "!=" => "@string.ne",
+                                        "<" => "@string.lt",
+                                        "<=" => "@string.le",
+                                        ">" => "@string.gt",
+                                        ">=" => "@string.ge",
+                                        _ => unreachable!(),
+                                    }.to_string(),
+                                    vec![
+                                        (IRType::PTR(Box::from(IRType::class("string"))), lhs_ir_name),
+                                        (IRType::PTR(Box::from(IRType::class("string"))), rhs_ir_name),
+                                    ],
+                                ));
+                            }else{
+                                ctx.insert_statement(IRNode::ICMP(
+                                    res_name.clone(),
+                                    match *op {
+                                        "==" => "eq",
+                                        "!=" => "ne",
+                                        _ => unreachable!(),
+                                    }.to_string(),
+                                    lhs_info.ty.clone(),
+                                    lhs_ir_name,
+                                    rhs_ir_name,
+                                ));
+                            }
                         }
                     }
 
@@ -866,14 +879,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let res_ty = IRType::from(ret_ty);
 
             if ret_ty.is_void() {
-                ctx.func_defs.push(IRNode::Call(
+                ctx.insert_statement(IRNode::Call(
                     None,
                     res_ty.clone(),
                     lhs_ir_name,
                     args,
                 ));
             } else {
-                ctx.func_defs.push(IRNode::Call(
+                ctx.insert_statement(IRNode::Call(
                     Some(res_name.clone()),
                     res_ty.clone(),
                     lhs_ir_name,
@@ -920,7 +933,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
         ASTNode::ForStmt(expr1, expr2, expr3, block, _) => {
             ctx.push();
             let pre_loop = ctx.cur_loop.clone();
-            let for_cnt = ctx.generate_loop(For);
+            let for_cnt = ctx.generate_loop(LoopType::For);
 
 
             if let Some(expr1) = expr1 {
@@ -963,7 +976,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
         ASTNode::WhileStmt(cond, block, _) => {
             ctx.push();
             let pre_loop = ctx.cur_loop.clone();
-            let while_cnt = ctx.generate_loop(While);
+            let while_cnt = ctx.generate_loop(LoopType::While);
             let cond_label = format!("while.cond.{}", while_cnt);
             let body_label = format!("while.body.{}", while_cnt);
             let end_label = format!("while.end.{}", while_cnt);
@@ -1006,28 +1019,37 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
         ASTNode::BreakStmt(_) => {
             let (loop_cnt, ty) = ctx.cur_loop.clone();
             match ty {
-                For => {
+                LoopType::For => {
                     ctx.func_defs.push(IRNode::Br(format!("for.end.{}", loop_cnt)));
                 }
-                While => {
+                LoopType::While => {
                     ctx.func_defs.push(IRNode::Br(format!("while.end.{}", loop_cnt)));
                 }
-                Null => unreachable!()
+                LoopType::Null => unreachable!()
             }
             IRInfo::void()
         }
         ASTNode::ContinueStmt(_) => {
             let (loop_cnt, ty) = ctx.cur_loop.clone();
             match ty {
-                For => {
+                LoopType::For => {
                     ctx.func_defs.push(IRNode::Br(format!("for.inc.{}", loop_cnt)));
                 }
-                While => {
+                LoopType::While => {
                     ctx.func_defs.push(IRNode::Br(format!("while.cond.{}", loop_cnt)));
                 }
-                Null => unreachable!()
+                LoopType::Null => unreachable!()
             }
             IRInfo::void()
+        }
+        ASTNode::NULL(_)=>{
+            IRInfo {
+                ty: IRType::PTR(Box::from(IRType::void())),
+                left_ir_name: String::from(""),
+                right_ir_name: Some("null".to_string()),
+                lhs_ir_name: None,
+                lhs_ty: IRType::void(),
+            }
         }
         ASTNode::Int(val, _) => {
             IRInfo {
@@ -1047,7 +1069,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 escaped.clone(),
             ));
             IRInfo {
-                ty: IRType::PTR(Box::from(IRType::Var(String::from("i8"), vec![l+1]))),
+                ty: IRType::PTR(Box::from(IRType::class("string"))),
                 left_ir_name: format!("@.str.{}", str_cnt),
                 right_ir_name: Some(format!("@.str.{}", str_cnt)),
                 lhs_ir_name: None,
@@ -1294,7 +1316,7 @@ fn alloc_arr_by_sizes<'a>(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ct
             String::from("0"),
             idx_ptr_name.clone(),
         ));
-        let loop_cnt = ctx.generate_loop(While);
+        let loop_cnt = ctx.generate_loop(LoopType::While);
         let cond_label = format!("while.cond.{}", loop_cnt);
         let body_label = format!("while.body.{}", loop_cnt);
         let end_label = format!("while.end.{}", loop_cnt);

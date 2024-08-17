@@ -111,6 +111,18 @@ impl IRType {
             _ => false,
         }
     }
+
+    pub fn is_string(&self) -> bool {
+        match self {
+            IRType::PTR(ty) => {
+                match &**ty {
+                    IRType::Var(name, sh) => name == "string" && sh.is_empty(),
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
 }
 
 impl Display for IRType {

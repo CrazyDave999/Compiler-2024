@@ -9,7 +9,9 @@ pub mod frontend;
 use frontend::ast;
 use frontend::visualize;
 use frontend::semantic;
-use frontend::ir;
+
+pub mod backend;
+use backend::ir;
 
 
 fn fail(s: &str) {
