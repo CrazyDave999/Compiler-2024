@@ -5,6 +5,8 @@ target triple = "riscv32-unknown-unknown-elf"
 @.str.1 = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
 @.str.2 = private unnamed_addr constant [3 x i8] c"%d\00", align 1
 @.str.3 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@.str.4 = private unnamed_addr constant [5 x i8] c"true\00", align 1
+@.str.5 = private unnamed_addr constant [6 x i8] c"false\00", align 1
 
 define dso_local void @print(ptr noundef %0) local_unnamed_addr #0  {
   
@@ -63,6 +65,11 @@ define dso_local noalias ptr @toString(i32 noundef %0) local_unnamed_addr #2  {
   %2 = tail call dereferenceable_or_null(64) ptr @malloc(i32 noundef 64) #12
   
   %3 = tail call i32 (ptr, ptr, ...) @sprintf(ptr noundef nonnull dereferenceable(1) %2, ptr noundef nonnull @.str.2, i32 noundef %0) #13
+  ret ptr %2
+}
+
+define dso_local noundef nonnull ptr @CrazyDave..boolToString(i1 noundef zeroext %0) local_unnamed_addr {
+  %2 = select i1 %0, ptr @.str.4, ptr @.str.5
   ret ptr %2
 }
 

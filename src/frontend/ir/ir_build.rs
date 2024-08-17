@@ -32,7 +32,7 @@ struct Context {
 }
 impl Context {
     pub fn new() -> Self {
-        let mut res = Context {
+        let res = Context {
             index: 0,
             cnt: 0,
             if_cnt: 0,
@@ -48,7 +48,6 @@ impl Context {
             global_init: Vec::new(),
             cur_loop: (-1, Null),
         };
-        res.insert_class_size("string", 4);
         res
     }
     pub fn push(&mut self) {
@@ -86,9 +85,7 @@ impl Context {
             format!("@{}", name)
         }
     }
-    pub fn class_use(&self, name: &str) -> String {
-        format!("%class.{}", name)
-    }
+
     pub fn class_use_this(&self) -> String {
         format!("%class.{}", self.class_name.as_ref().unwrap())
     }
@@ -251,7 +248,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             if let Some(class_name) = ctx.class_name.as_ref() {
                 args_.push((IRType::PTR(Box::from(IRType::class(class_name))), String::from("%this")));
             }
-            for (ty, name, cnt) in args {
+            for (ty, name, _) in args {
                 args_.push((IRType::from(ty), ctx.param(name)));
             }
 
@@ -287,6 +284,23 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             IRInfo::void()
         }
         ASTNode::ConstrDef(name, block, _) => {
+            ctx.push();
+            let mut args = Vec::new();
+            if let Some(class_name) = ctx.class_name.as_ref() {
+                args.push((IRType::PTR(Box::from(IRType::class(class_name))), String::from("%this")));
+            }
+            ctx.func_defs.push(IRNode::FuncBegin(IRType::void(), ctx.func_def(*name), args));
+            ctx.last_label = String::from("entry");
+            dfs(block, ctx);
+            let last = ctx.func_defs.last().unwrap();
+            match last {
+                IRNode::Ret(_, _) => {}
+                _ => {
+                    ctx.func_defs.push(IRNode::Ret(IRType::void(), None));
+                }
+            }
+            ctx.func_defs.push(IRNode::FuncEnd);
+            ctx.pop();
             IRInfo::void()
         }
         ASTNode::VarDecl(ty, vars, _) => {
@@ -349,7 +363,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             }
         }
         ASTNode::ArrayInit(name, sizes, op, _) => {
-            if let Some(arr_const) = op {
+            if let Some(_) = op {
                 unreachable!()
             } else {
                 alloc_arr_by_sizes(name, sizes, 0, ctx)
@@ -978,7 +992,127 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 lhs_ty: IRType::void(),
             }
         }
+        ASTNode::FmtStr(ch, _) => {
+            let mut last_str = String::new();
+            let mut lhs_name = String::new();
+            for node in ch {
+                match node {
+                    ASTNode::Str(s, _) => {
+                        last_str.push_str(*s);
+                    }
+                    _ => {
+                        // i32, i1, fmt_string
+                        let info = dfs(node, ctx);
+                        let ir_name = info.get_right_ir_name(ctx);
+                        let rhs_name = if info.ty.is_i32() {
+                            let i32_name = ctx.generate();
+                            ctx.insert_statement(IRNode::Call(
+                                Some(i32_name.clone()),
+                                IRType::PTR(Box::from(IRType::class("string"))),
+                                String::from("@toString"),
+                                vec![(IRType::i32(), ir_name)],
+                            ));
+                            i32_name
+                        } else if info.ty.is_i1() {
+                            let i1_name = ctx.generate();
+                            ctx.insert_statement(IRNode::Call(
+                                Some(i1_name.clone()),
+                                IRType::PTR(Box::from(IRType::class("string"))),
+                                String::from("@CrazyDave..boolToString"),
+                                vec![(IRType::i1(), ir_name)],
+                            ));
+                            i1_name
+                        } else {
+                            ir_name
+                        };
+                        if last_str.is_empty() {
+                            if lhs_name.is_empty() {
+                                lhs_name = rhs_name;
+                            } else {
+                                let new_lhs_name = ctx.generate();
+                                ctx.insert_statement(IRNode::Call(
+                                    Some(new_lhs_name.clone()),
+                                    IRType::PTR(Box::from(IRType::class("string"))),
+                                    String::from("@string.add"),
+                                    vec![
+                                        (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
+                                        (IRType::PTR(Box::from(IRType::class("string"))), rhs_name),
+                                    ],
+                                ));
+                                lhs_name = new_lhs_name;
+                            }
+                        } else {
+                            let str_cnt = ctx.generate_str();
+                            let last_str_name = format!("@.str.{}", str_cnt);
+                            ctx.var_decls.push(IRNode::Str(
+                                last_str_name.clone(),
+                                IRType::Var(String::from("i8"), vec![last_str.len() as i32 + 1]),
+                                last_str.clone(),
+                            ));
 
+                            let add_name_1 = ctx.generate();
+                            ctx.insert_statement(IRNode::Call(
+                                Some(add_name_1.clone()),
+                                IRType::PTR(Box::from(IRType::class("string"))),
+                                String::from("@string.add"),
+                                vec![
+                                    (IRType::PTR(Box::from(IRType::class("string"))), last_str_name.clone()),
+                                    (IRType::PTR(Box::from(IRType::class("string"))), rhs_name.clone()),
+                                ],
+                            ));
+
+                            if lhs_name.is_empty() {
+                                lhs_name = add_name_1;
+                            } else {
+                                let add_name_2 = ctx.generate();
+                                ctx.insert_statement(IRNode::Call(
+                                    Some(add_name_2.clone()),
+                                    IRType::PTR(Box::from(IRType::class("string"))),
+                                    String::from("@string.add"),
+                                    vec![
+                                        (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
+                                        (IRType::PTR(Box::from(IRType::class("string"))), add_name_1.clone()),
+                                    ],
+                                ));
+                                lhs_name = add_name_2;
+                            }
+                        }
+                        last_str.clear();
+                    }
+                }
+            }
+            if !last_str.is_empty() {
+                let str_cnt = ctx.generate_str();
+                let last_str_name = format!("@.str.{}", str_cnt);
+                ctx.var_decls.push(IRNode::Str(
+                    last_str_name.clone(),
+                    IRType::Var(String::from("i8"), vec![last_str.len() as i32 + 1]),
+                    last_str.clone(),
+                ));
+                if !lhs_name.is_empty() {
+                    let add_name = ctx.generate();
+                    ctx.insert_statement(IRNode::Call(
+                        Some(add_name.clone()),
+                        IRType::PTR(Box::from(IRType::class("string"))),
+                        String::from("@string.add"),
+                        vec![
+                            (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
+                            (IRType::PTR(Box::from(IRType::class("string"))), last_str_name.clone()),
+                        ],
+                    ));
+                    lhs_name = add_name;
+                }else{
+                    lhs_name = last_str_name;
+                }
+            }
+            IRInfo {
+                ty: IRType::PTR(Box::from(IRType::class("string"))),
+                left_ir_name: lhs_name.clone(),
+                right_ir_name: Some(lhs_name),
+                lhs_ir_name: None,
+                lhs_ty: IRType::void(),
+            }
+        }
         ASTNode::Ident(name, _, idx, ty, cnt, is_global) => {
             if *idx != -1 {
                 // 成员
@@ -1069,8 +1203,8 @@ fn alloc_arr_by_sizes<'a>(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ct
         lhs_ir_name: None,
         lhs_ty: IRType::void(),
     };
-    if cur == sizes.len() as i32 - 1 && (name == "int" || name == "bool") {
-        // 最后一层若为i32和i1，就把这指针空间当成i32和i1的数组空间
+    if cur == sizes.len() as i32 - 1 && (name == "int" || name == "bool" || name == "string") {
+        // 最后一层若为i32和i1和string，就把这指针空间当成i32和i1的数组空间或string的指针空间
         return res_info;
     }
     if cur == sizes.len() as i32 - 1 || !&sizes[cur as usize + 1].is_none() {

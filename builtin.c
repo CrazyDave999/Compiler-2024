@@ -43,6 +43,10 @@ char *toString(int n){
     return str;
 }
 
+char *CrazyDave_boolToString(bool b){
+    return b ? "true" : "false";
+}
+
 void *CrazyDave_AllocArray(int size){
     int *p = malloc((size << 2) + 4);
     p[0] = size;

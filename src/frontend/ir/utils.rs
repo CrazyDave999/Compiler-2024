@@ -97,6 +97,20 @@ impl IRType {
             _ => false,
         }
     }
+
+    pub fn is_i32(&self) -> bool {
+        match self {
+            IRType::Var(name, sh) => name == "i32" && sh.is_empty(),
+            _ => false,
+        }
+    }
+
+    pub fn is_i1(&self) -> bool {
+        match self {
+            IRType::Var(name, sh) => name == "i1" && sh.is_empty(),
+            _ => false,
+        }
+    }
 }
 
 impl Display for IRType {

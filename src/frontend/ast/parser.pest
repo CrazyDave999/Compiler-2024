@@ -50,8 +50,8 @@ suffix_expr = { atom ~ ( increment | array_access | member_access | func_call )*
 
 atom = {
     this
-    | CONST
     | fmt_string
+    | CONST
     | ident
     | "(" ~ expr ~ ")"
 }
@@ -64,7 +64,7 @@ fmt_char = @{ escape_char | ( !( "\"" | "$" | "\\" ) ~ ANY ) }
 
 increment = { "++" | "--" }
 array_access = { "[" ~ expr ~ "]" }
-member_access = { "." ~ ( ident | keyword ) }
+member_access = { "." ~ ident }
 func_call = { "(" ~ test_list ~ ")" }
 test_list = { ( expr ~ ( "," ~ expr )* )? }
 
