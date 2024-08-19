@@ -74,16 +74,16 @@ impl Context {
 
     pub fn func_def(&self, name: &str) -> String {
         if let Some(class_name) = &self.class_name {
-            format!("@{}.{}", class_name, name)
+            format!("{}.{}", class_name, name)
         } else {
-            format!("@{}", name)
+            format!("{}", name)
         }
     }
     pub fn func_use(&self, name: &str, class_name: Option<String>) -> String {
         if let Some(class_name) = class_name {
-            format!("@{}.{}", class_name, name)
+            format!("{}.{}", class_name, name)
         } else {
-            format!("@{}", name)
+            format!("{}", name)
         }
     }
 
@@ -189,7 +189,7 @@ pub fn build_ir<'a>(ast: &'a ASTNode<'a>) -> Vec<IRNode> {
     for ch in ctx.var_decls {
         res.push(ch);
     }
-    res.push(IRNode::FuncBegin(IRType::void(), String::from("@global..init"), vec![]));
+    res.push(IRNode::FuncBegin(IRType::void(), String::from("global..init"), vec![]));
     for ch in ctx.global_init {
         res.push(ch);
     }
@@ -199,8 +199,8 @@ pub fn build_ir<'a>(ast: &'a ASTNode<'a>) -> Vec<IRNode> {
         res.push(ch.clone());
         match &ch {
             IRNode::FuncBegin(_, name, _) => {
-                if name == "@main" {
-                    res.push(IRNode::Call(None, IRType::void(), String::from("@global..init"), vec![]));
+                if name == "main" {
+                    res.push(IRNode::Call(None, IRType::void(), String::from("global..init"), vec![]));
                 }
             }
             _ => {}
@@ -403,7 +403,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             ctx.insert_statement(IRNode::Call(
                 Some(res_name.clone()),
                 res_ty.clone(),
-                String::from("@malloc"),
+                String::from("malloc"),
                 vec![(IRType::i32(), ctx.size_of(name).to_string())],
             ));
             // 调用构造函数
@@ -447,7 +447,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             ctx.insert_statement(IRNode::Call(
                                 Some(res_name.clone()),
                                 res_ty.clone(),
-                                String::from("@string.add"),
+                                String::from("string.add"),
                                 vec![
                                     (IRType::PTR(Box::from(IRType::class("string"))), lhs_ir_name),
                                     (IRType::PTR(Box::from(IRType::class("string"))), rhs_ir_name),
@@ -528,12 +528,12 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                     Some(res_name.clone()),
                                     res_ty.clone(),
                                     match *op {
-                                        "==" => "@string.eq",
-                                        "!=" => "@string.ne",
-                                        "<" => "@string.lt",
-                                        "<=" => "@string.le",
-                                        ">" => "@string.gt",
-                                        ">=" => "@string.ge",
+                                        "==" => "string.eq",
+                                        "!=" => "string.ne",
+                                        "<" => "string.lt",
+                                        "<=" => "string.le",
+                                        ">" => "string.gt",
+                                        ">=" => "string.ge",
                                         _ => unreachable!(),
                                     }.to_string(),
                                     vec![
@@ -1105,7 +1105,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             ctx.insert_statement(IRNode::Call(
                                 Some(i32_name.clone()),
                                 IRType::PTR(Box::from(IRType::class("string"))),
-                                String::from("@toString"),
+                                String::from("toString"),
                                 vec![(IRType::i32(), ir_name)],
                             ));
                             i32_name
@@ -1114,7 +1114,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             ctx.insert_statement(IRNode::Call(
                                 Some(i1_name.clone()),
                                 IRType::PTR(Box::from(IRType::class("string"))),
-                                String::from("@CrazyDave..boolToString"),
+                                String::from("CrazyDave..boolToString"),
                                 vec![(IRType::i1(), ir_name)],
                             ));
                             i1_name
@@ -1129,7 +1129,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                 ctx.insert_statement(IRNode::Call(
                                     Some(new_lhs_name.clone()),
                                     IRType::PTR(Box::from(IRType::class("string"))),
-                                    String::from("@string.add"),
+                                    String::from("string.add"),
                                     vec![
                                         (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
                                         (IRType::PTR(Box::from(IRType::class("string"))), rhs_name),
@@ -1150,7 +1150,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             ctx.insert_statement(IRNode::Call(
                                 Some(add_name_1.clone()),
                                 IRType::PTR(Box::from(IRType::class("string"))),
-                                String::from("@string.add"),
+                                String::from("string.add"),
                                 vec![
                                     (IRType::PTR(Box::from(IRType::class("string"))), last_str_name.clone()),
                                     (IRType::PTR(Box::from(IRType::class("string"))), rhs_name.clone()),
@@ -1164,7 +1164,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                 ctx.insert_statement(IRNode::Call(
                                     Some(add_name_2.clone()),
                                     IRType::PTR(Box::from(IRType::class("string"))),
-                                    String::from("@string.add"),
+                                    String::from("string.add"),
                                     vec![
                                         (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
                                         (IRType::PTR(Box::from(IRType::class("string"))), add_name_1.clone()),
@@ -1190,7 +1190,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ctx.insert_statement(IRNode::Call(
                         Some(add_name.clone()),
                         IRType::PTR(Box::from(IRType::class("string"))),
-                        String::from("@string.add"),
+                        String::from("string.add"),
                         vec![
                             (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
                             (IRType::PTR(Box::from(IRType::class("string"))), last_str_name.clone()),
@@ -1355,7 +1355,7 @@ fn alloc_arr_by_sizes<'a>(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ct
             ctx.insert_statement(IRNode::Call(
                 Some(alloc_name.clone()),
                 IRType::PTR(Box::from(IRType::class(name))),
-                String::from("@malloc"),
+                String::from("malloc"),
                 vec![(IRType::i32(), ctx.size_of(name).to_string())],
             ));
             // 调用构造函数

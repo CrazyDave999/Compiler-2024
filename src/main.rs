@@ -12,6 +12,7 @@ use frontend::semantic;
 
 pub mod backend;
 use backend::ir;
+use backend::asm;
 
 
 fn fail(s: &str) {
@@ -156,18 +157,45 @@ fn emit_llvm_oj() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let input = fs::read_to_string(file)?;
+    match ast::MxParser::parse(ast::Rule::file, &input) {
+        Ok(pairs) => {
+            let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            match semantic::check(&mut ast) {
+                Ok(_) => {
+                    let ir_nodes = ir::build_ir(&ast);
+                    let mut file = File::create("test.ll")?;
+                    ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+                    let asm_nodes = asm::build_asm(&ir_nodes);
+                    file = File::create("test.s")?;
+                    asm::print_asm(&asm_nodes, &mut file).expect("FUCK YOU PRINT_ASM!");
+                    Ok(())
+                }
+                Err((msg, span)) => {
+                    println!("\nError: {}\n", msg);
+                    print_error_context(&input, &span, msg);
+                    Err(Box::new(io::Error::new(io::ErrorKind::Other, msg)))
+                }
+            }
+        }
+        Err(e) => {
+            println!("\nParse error: {}\n", e);
+            Err(Box::new(e))
+        }
+    }
+}
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_args: Vec<_> = env::args().collect();
-    if env_args.len() < 2 {
-        fail("Invalid Arguments");
-    }
     match env_args[1].as_str() {
         "-fsyntax-only" => syntax_only_oj(),
         "-fsyntax-test" => syntax_only_test(env_args[2].as_str()),
         "-debug" => detailed_debug(env_args[2].as_str()),
         "-emit-test" => emit_llvm_test(env_args[2].as_str()),
         "-emit-llvm" => emit_llvm_oj(),
+        "-test" => asm_test(env_args[2].as_str()),
         _ => {
             fail("Invalid Arguments");
             Ok(())
