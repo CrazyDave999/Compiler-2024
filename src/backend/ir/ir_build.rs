@@ -57,9 +57,6 @@ impl Context {
     pub fn pop(&mut self) {
         self.index -= 1;
     }
-    pub fn global_var(&self, name: &str) -> String {
-        format!("@{}", name)
-    }
 
     pub fn local_var_def(&self, name: &str, cnt: i32) -> String {
         format!("%{}.{}", name, cnt)
@@ -336,7 +333,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 let ir_type = IRType::from(ty);
                 for (name, init, _) in vars {
                     ctx.var_decls.push(IRNode::Global(
-                        ctx.global_var(name),
+                        name.to_string(),
                         ir_type.clone(),
                         match &ir_type {
                             IRType::Var(name, _) => match name.as_str() {
@@ -353,7 +350,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         ctx.global_init.push(IRNode::Store(
                             ir_type.clone(),
                             init_ir_name,
-                            ctx.global_var(name),
+                            format!("@{}", *name),
                         ));
                     }
                 }
@@ -541,7 +538,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                         (IRType::PTR(Box::from(IRType::class("string"))), rhs_ir_name),
                                     ],
                                 ));
-                            }else{
+                            } else {
                                 ctx.insert_statement(IRNode::ICMP(
                                     res_name.clone(),
                                     match *op {
@@ -1042,7 +1039,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             }
             IRInfo::void()
         }
-        ASTNode::NULL(_)=>{
+        ASTNode::NULL(_) => {
             IRInfo {
                 ty: IRType::PTR(Box::from(IRType::void())),
                 left_ir_name: String::from(""),
@@ -1061,12 +1058,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             }
         }
         ASTNode::Str(s, _) => {
-            let (escaped,l) = super::escape_string(*s);
+            let (escaped, l) = super::escape_string(*s);
             let str_cnt = ctx.generate_str();
             ctx.var_decls.push(IRNode::Str(
-                format!("@.str.{}", str_cnt),
-                IRType::Var(String::from("i8"), vec![l+1]),
+                format!(".str.{}", str_cnt),
+                IRType::Var(String::from("i8"), vec![l + 1]),
                 escaped.clone(),
+                s.to_string(),
             ));
             IRInfo {
                 ty: IRType::PTR(Box::from(IRType::class("string"))),
@@ -1141,9 +1139,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             let str_cnt = ctx.generate_str();
                             let last_str_name = format!("@.str.{}", str_cnt);
                             ctx.var_decls.push(IRNode::Str(
-                                last_str_name.clone(),
+                                format!(".str.{}", str_cnt),
                                 IRType::Var(String::from("i8"), vec![last_str.len() as i32 + 1]),
                                 last_str.clone(),
+                                last_str.to_string(),
                             ));
 
                             let add_name_1 = ctx.generate();
@@ -1181,9 +1180,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 let str_cnt = ctx.generate_str();
                 let last_str_name = format!("@.str.{}", str_cnt);
                 ctx.var_decls.push(IRNode::Str(
-                    last_str_name.clone(),
+                    format!(".str.{}", str_cnt),
                     IRType::Var(String::from("i8"), vec![last_str.len() as i32 + 1]),
                     last_str.clone(),
+                    last_str.to_string(),
                 ));
                 if !lhs_name.is_empty() {
                     let add_name = ctx.generate();
@@ -1252,7 +1252,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         IRInfo {
                             ty: IRType::from(ty),
                             left_ir_name: if *is_global {
-                                ctx.global_var(*name)
+                                format!("@{}", *name)
                             } else {
                                 ctx.local_var_use(name, *cnt)
                             },

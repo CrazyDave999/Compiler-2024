@@ -4,7 +4,7 @@ use super::IRType;
 pub enum IRNode {
     Class(String, Vec<IRType>), // name, fields
     Global(String, IRType, String), // name, ty, val
-    Str(String,IRType,String), // name, ty, val
+    Str(String, IRType, String, String), // name, ty, val, original
     FuncBegin(IRType, String, Vec<(IRType, String)>), // ret_ty, name, args
     FuncEnd,
     Binary(String, String, IRType, String, String), // res, op, ty, lhs, rhs
@@ -29,10 +29,10 @@ impl Display for IRNode {
                 write!(f, "{} = type {{{}}}\n", name, ch.iter().map(|x| format!("{}", x)).collect::<Vec<String>>().join(", "))
             }
             IRNode::Global(name, ty, val) => {
-                write!(f, "{} = global {} {}\n", name, ty, val)
+                write!(f, "@{} = global {} {}\n", name, ty, val)
             }
-            IRNode::Str(name, ty, val) => {
-                write!(f, "{} = private unnamed_addr constant {} c\"{}\\00\"\n", name, ty, val)
+            IRNode::Str(name, ty, val,_) => {
+                write!(f, "@{} = private unnamed_addr constant {} c\"{}\\00\"\n", name, ty, val)
             }
             IRNode::FuncBegin(ret_ty, name, args) => {
                 write!(

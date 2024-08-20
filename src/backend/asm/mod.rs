@@ -5,6 +5,7 @@ mod asm_build;
 mod asm_print;
 
 use super::ir::IRNode;
+use super::ir::IRType;
 use node::ASMNode;
 
 pub use asm_build::build_asm;

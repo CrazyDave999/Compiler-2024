@@ -18,3 +18,4 @@ llvm-test-all:
 
 asm-test:
 	./target/debug/compiler-2024 -test ./test
+	ravel --input-file=test.in --output-file=test.out test.s builtin.s
