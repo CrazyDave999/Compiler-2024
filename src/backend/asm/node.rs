@@ -3,10 +3,10 @@ use std::fmt::Display;
 pub enum ASMNode {
     Store(i32, String, String, String), // sw/sh/sb rs2 imm(rs1)
     Load(i32, String, String, String), // lw/lh/lb rd imm(rs1)
-    Lui(String, String),
-    J,
+    Lui(String, String), // lui rd imm
+    J(String), // j label
     Ret,
-    Branch,
+    Branch(String, String, String, String), // beq/bne rs1, rs2, label
     Arith(String, String, String, String), // op rd rs1 rs2
     ArithI(String, String, String, String), // op rd rs1 imm
     Label(String),
@@ -42,14 +42,14 @@ impl Display for ASMNode {
             ASMNode::Lui(rd, imm) => {
                 write!(f, "lui {}, {}\n", rd, imm)
             }
-            ASMNode::J => {
-                write!(f, "j")
+            ASMNode::J(label) => {
+                write!(f, "j {}\n", label)
             }
             ASMNode::Ret => {
                 write!(f, "ret\n")
             }
-            ASMNode::Branch => {
-                write!(f, "branch")
+            ASMNode::Branch(op, rs1, rs2, label) => {
+                write!(f, "{} {}, {}, {}\n", op, rs1, rs2, label)
             }
             ASMNode::Arith(op, rd, rs1, rs2) => {
                 write!(f, "{} {}, {}, {}\n", op, rd, rs1, rs2)
