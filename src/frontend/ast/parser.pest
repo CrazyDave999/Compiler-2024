@@ -58,9 +58,10 @@ atom = {
 
 this = { "this" }
 
-fmt_string = { "f\"" ~ ( fmt_char | ( "$" ~ expr ~ "$" ) )* ~ "\"" }
+fmt_string = @{ "f\"" ~ ( fmt_char | inner_expr )* ~ "\"" }
+inner_expr = !{ "$" ~ expr ~ "$" }
 escape_char = { "\\n" | "\\\"" | "\\\\" | "$$" }
-fmt_char = @{ escape_char | ( !( "\"" | "$" | "\\" ) ~ ANY ) }
+fmt_char = !{ " " | escape_char | ( !( "\"" | "$" | "\\" ) ~ ANY ) }
 
 increment = { "++" | "--" }
 array_access = { "[" ~ expr ~ "]" }

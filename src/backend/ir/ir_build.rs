@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::backend::ir::utils::escape_string;
 use super::IRType;
 use super::IRNode;
 use super::ast::ASTNode;
@@ -563,11 +564,24 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     }
                 }
                 "&&" => {
-                    let last_label = ctx.last_label.clone();
+                    // let last_label = ctx.last_label.clone();
                     let land_cnt = ctx.generate_land();
                     let land_true_label = format!("land.true.{}", land_cnt);
                     let land_end_label = format!("land.end.{}", land_cnt);
                     let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
+
+                    // for displacing phi
+                    let res_name = ctx.generate();
+                    ctx.insert_statement(IRNode::Allocate(
+                        res_name.clone(),
+                        IRType::i1(),
+                    ));
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        lhs_ir_name.clone(),
+                        res_name.clone(),
+                    ));
+
                     ctx.insert_statement(IRNode::BrCond(
                         lhs_ir_name.clone(),
                         land_true_label.clone(),
@@ -577,34 +591,56 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ctx.last_label = land_true_label.clone();
                     let rhs_info = dfs(rhs, ctx);
                     let rhs_ir_name = rhs_info.get_right_ir_name(ctx);
+
+                    // for displacing phi
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        rhs_ir_name.clone(),
+                        res_name.clone(),
+                    ));
+
                     ctx.insert_statement(IRNode::Br(
                         land_end_label.clone(),
                     ));
+
                     ctx.insert_statement(IRNode::Label(land_end_label.clone()));
-                    let res_name = ctx.generate();
-                    ctx.insert_statement(IRNode::Phi(
-                        res_name.clone(),
-                        IRType::i1(),
-                        vec![
-                            (String::from("false"), last_label),
-                            (rhs_ir_name, ctx.last_label.clone()),
-                        ],
-                    ));
+
+                    // ctx.insert_statement(IRNode::Phi(
+                    //     res_name.clone(),
+                    //     IRType::i1(),
+                    //     vec![
+                    //         (String::from("false"), last_label),
+                    //         (rhs_ir_name, ctx.last_label.clone()),
+                    //     ],
+                    // ));
                     ctx.last_label = land_end_label;
                     IRInfo {
                         ty: IRType::i1(),
-                        left_ir_name: String::from(""),
-                        right_ir_name: Some(res_name),
+                        left_ir_name: res_name, // for displacing phi
+                        right_ir_name: None, // for displacing phi
                         lhs_ir_name: None,
                         lhs_ty: IRType::void(),
                     }
                 }
                 "||" => {
-                    let last_label = ctx.last_label.clone();
+                    // let last_label = ctx.last_label.clone();
                     let lor_cnt = ctx.generate_lor();
                     let lor_false_label = format!("lor.false.{}", lor_cnt);
                     let lor_end_label = format!("lor.end.{}", lor_cnt);
                     let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
+
+                    // for displacing phi
+                    let res_name = ctx.generate();
+                    ctx.insert_statement(IRNode::Allocate(
+                        res_name.clone(),
+                        IRType::i1(),
+                    ));
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        lhs_ir_name.clone(),
+                        res_name.clone(),
+                    ));
+
                     ctx.insert_statement(IRNode::BrCond(
                         lhs_ir_name.clone(),
                         lor_end_label.clone(),
@@ -614,24 +650,32 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ctx.last_label = lor_false_label.clone();
                     let rhs_info = dfs(rhs, ctx);
                     let rhs_ir_name = rhs_info.get_right_ir_name(ctx);
+
+                    // for displacing phi
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        rhs_ir_name.clone(),
+                        res_name.clone(),
+                    ));
+
                     ctx.insert_statement(IRNode::Br(
                         lor_end_label.clone(),
                     ));
                     ctx.insert_statement(IRNode::Label(lor_end_label.clone()));
-                    let res_name = ctx.generate();
-                    ctx.insert_statement(IRNode::Phi(
-                        res_name.clone(),
-                        IRType::i1(),
-                        vec![
-                            (String::from("true"), last_label),
-                            (rhs_ir_name, ctx.last_label.clone()),
-                        ],
-                    ));
+
+                    // ctx.insert_statement(IRNode::Phi(
+                    //     res_name.clone(),
+                    //     IRType::i1(),
+                    //     vec![
+                    //         (String::from("true"), last_label),
+                    //         (rhs_ir_name, ctx.last_label.clone()),
+                    //     ],
+                    // ));
                     ctx.last_label = lor_end_label;
                     IRInfo {
                         ty: IRType::i1(),
-                        left_ir_name: String::from(""),
-                        right_ir_name: Some(res_name),
+                        left_ir_name: res_name, // for displacing phi
+                        right_ir_name: None, // for displacing phi
                         lhs_ir_name: None,
                         lhs_ty: IRType::void(),
                     }
@@ -719,6 +763,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let if_label = format!("if.then.{}", if_cnt);
             let else_label = format!("if.else.{}", if_cnt);
             let end_label = format!("if.end.{}", if_cnt);
+
+            // let res_name
+
             ctx.insert_statement(IRNode::BrCond(
                 cond_ir_name,
                 if_label.clone(),
@@ -1058,7 +1105,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             }
         }
         ASTNode::Str(s, _) => {
-            let (escaped, l) = super::escape_string(*s);
+            let (escaped, l) = escape_string(*s);
             let str_cnt = ctx.generate_str();
             ctx.var_decls.push(IRNode::Str(
                 format!(".str.{}", str_cnt),
@@ -1138,10 +1185,11 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         } else {
                             let str_cnt = ctx.generate_str();
                             let last_str_name = format!("@.str.{}", str_cnt);
+                            let (escaped, l) = escape_string(last_str.as_str());
                             ctx.var_decls.push(IRNode::Str(
                                 format!(".str.{}", str_cnt),
-                                IRType::Var(String::from("i8"), vec![last_str.len() as i32 + 1]),
-                                last_str.clone(),
+                                IRType::Var(String::from("i8"), vec![l + 1]),
+                                escaped,
                                 last_str.to_string(),
                             ));
 
@@ -1179,10 +1227,11 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             if !last_str.is_empty() {
                 let str_cnt = ctx.generate_str();
                 let last_str_name = format!("@.str.{}", str_cnt);
+                let (escaped, l) = escape_string(last_str.as_str());
                 ctx.var_decls.push(IRNode::Str(
                     format!(".str.{}", str_cnt),
-                    IRType::Var(String::from("i8"), vec![last_str.len() as i32 + 1]),
-                    last_str.clone(),
+                    IRType::Var(String::from("i8"), vec![l + 1]),
+                    escaped,
                     last_str.to_string(),
                 ));
                 if !lhs_name.is_empty() {

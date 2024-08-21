@@ -387,7 +387,7 @@ fn visit_fmt_string(pair: Pair<Rule>) -> ASTNode {
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
             Rule::fmt_char => res.push(visit_str(inner_pair)),
-            Rule::expr => res.push(visit_expr(inner_pair)),
+            Rule::inner_expr => res.push(visit_expr(inner_pair.into_inner().next().unwrap())),
             _ => { unreachable!() }
         }
     }
