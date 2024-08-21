@@ -16,6 +16,7 @@ pub enum ASMNode {
     Data(i32, i32), // length, value
     Str(String),
     Section(String),
+    Align(i32),
 }
 
 impl Display for ASMNode {
@@ -83,6 +84,9 @@ impl Display for ASMNode {
             }
             ASMNode::Section(name) => {
                 write!(f, ".section {}\n", name)
+            }
+            ASMNode::Align(align) => {
+                write!(f, ".align {}\n", align)
             }
         }
     }

@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::collections::HashMap;
 use super::ASMNode;
 use super::IRNode;
@@ -20,39 +20,33 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
 
                 alloc_size += 4; // for ra
 
-                for (j, (ty, _)) in args.iter().enumerate() {
-                    alloc_size += ty.size();
-                    if j == 7 {
-                        break;
-                    }
-                }
+                alloc_size += (min(8, args.len()) * 4) as i32;
+
                 let mut max_call_arg_spill = 0;
                 for j in i + 1.. {
                     match &ir[j] {
-                        IRNode::Allocate(_, ty) => {
-                            alloc_size += 4 + ty.size();
+                        IRNode::Allocate(_, _) => {
+                            alloc_size += 8;
                         }
-                        IRNode::Load(_, ty, _) => {
-                            alloc_size += ty.size();
+                        IRNode::Load(_, _, _) => {
+                            alloc_size += 4;
                         }
                         IRNode::GetElementPtr(_, _, _, _) => {
                             alloc_size += 4;
                         }
-                        IRNode::Binary(_, _, ty, _, _) => {
-                            alloc_size += ty.size();
+                        IRNode::Binary(_, _, _, _, _) => {
+                            alloc_size += 4;
                         }
-                        IRNode::ICMP(_, _, ty, _, _) => {
-                            alloc_size += ty.size();
+                        IRNode::ICMP(_, _, _, _, _) => {
+                            alloc_size += 4;
                         }
-                        IRNode::Call(res, ret_ty, _, args) => {
+                        IRNode::Call(res, _, _, args) => {
                             if let Some(_) = res {
-                                alloc_size += ret_ty.size();
+                                alloc_size += 4;
                             }
                             let mut call_arg_spill = 0;
-                            for (j, (ty, _)) in args.iter().enumerate() {
-                                if j > 7 {
-                                    call_arg_spill += ty.size();
-                                }
+                            if args.len() > 8 {
+                                call_arg_spill = (args.len() - 8) as i32 * 4;
                             }
                             max_call_arg_spill = max(max_call_arg_spill, call_arg_spill);
                         }
@@ -83,7 +77,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                 let mut arg_spill = 0;
                 for (j, (ty, name)) in args.iter().enumerate() {
                     if j <= 7 {
-                        offset -= ty.size();
+                        offset -= 4;
                         map.insert(name.clone(), offset);
                         asm.push(ASMNode::Store(
                             ty.size(),
@@ -93,7 +87,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                         ));
                     } else {
                         map.insert(name.clone(), alloc_size + arg_spill);
-                        arg_spill += ty.size();
+                        arg_spill += 4;
                     }
                 }
 
@@ -103,10 +97,10 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                         IRNode::Label(label) => {
                             asm.push(ASMNode::Label(label.clone()));
                         }
-                        IRNode::Allocate(res, ty) => {
+                        IRNode::Allocate(res, _) => {
                             offset -= 4;
                             map.insert(res.clone(), offset);
-                            offset -= ty.size();
+                            offset -= 4;
                             asm.push(ASMNode::ArithI(
                                 "addi".to_string(),
                                 "t0".to_string(),
@@ -122,7 +116,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                         }
                         IRNode::Load(res, ty, ptr) => {
                             // 把一个地址处的东西放入虚拟寄存器，在最蠢的想法里，就是把那个地址处的东西拿出来，存到虚拟寄存器对应的栈空间
-                            offset -= ty.size();
+                            offset -= 4;
                             map.insert(res.clone(), offset);
                             match ptr.chars().nth(0).unwrap() {
                                 '%' => {
@@ -238,7 +232,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                             ));
                         }
                         IRNode::Binary(res, op, ty, lhs, rhs) => {
-                            offset -= ty.size();
+                            offset -= 4;
                             map.insert(res.clone(), offset);
 
                             get_val(&"t0".to_string(), lhs, ty, &map, &mut asm);
@@ -264,7 +258,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                             ));
                         }
                         IRNode::ICMP(res, cond, ty, lhs, rhs) => {
-                            offset -= ty.size();
+                            offset -= 4;
                             map.insert(res.clone(), offset);
 
                             get_val(&"t0".to_string(), lhs, ty, &map, &mut asm);
@@ -371,7 +365,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                         }
                         IRNode::Call(res, ret_ty, name, args) => {
                             if let Some(res) = res {
-                                offset -= ret_ty.size();
+                                offset -= 4;
                                 map.insert(res.clone(), offset);
                             }
                             let mut call_arg_spill = 0;
@@ -386,7 +380,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                                         call_arg_spill.to_string(),
                                         "sp".to_string(),
                                     ));
-                                    call_arg_spill += ty.size();
+                                    call_arg_spill += 4;
                                 }
                             }
                             asm.push(ASMNode::Call(name.clone()));
@@ -426,6 +420,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
             IRNode::Global(name, ty, _) => {
                 data.push(ASMNode::Section(".sbss".to_string()));
                 data.push(ASMNode::Global(name.clone()));
+                data.push(ASMNode::Align(2));
                 data.push(ASMNode::Label(name.clone()));
                 data.push(ASMNode::Data(ty.size(), 0));
             }
@@ -454,12 +449,26 @@ fn get_val(reg: &String, arg: &String, ty: &IRType, map: &HashMap<String, i32>, 
     }
     match arg.parse::<i32>() {
         Ok(val) => {
-            asm.push(ASMNode::ArithI(
-                "addi".to_string(),
-                reg.clone(),
-                "zero".to_string(),
-                val.to_string(),
-            ));
+            // 范围应在[-2048, 2047]
+            if val >= -2048 && val <= 2047 {
+                asm.push(ASMNode::ArithI(
+                    "addi".to_string(),
+                    reg.clone(),
+                    "zero".to_string(),
+                    val.to_string(),
+                ));
+            } else {
+                asm.push(ASMNode::Lui(
+                    reg.clone(),
+                    (val >> 12).to_string(),
+                ));
+                asm.push(ASMNode::ArithI(
+                    "addi".to_string(),
+                    reg.clone(),
+                    reg.clone(),
+                    (val & 0xfff).to_string(),
+                ));
+            }
         }
         Err(_) => {
             match arg.chars().nth(0).unwrap() {
