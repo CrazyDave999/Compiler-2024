@@ -5,7 +5,7 @@ use super::IRNode;
 use super::IRType;
 
 
-pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
+pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
     let mut asm = Vec::new();
     let mut data = Vec::new();
 
@@ -116,7 +116,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                             asm.push(ASMNode::Store(
                                 4,
                                 "t0".to_string(),
-                                map[res].to_string(),
+                                map.get(res).ok_or("Key Not Found")?.to_string(),
                                 "sp".to_string(),
                             ));
                         }
@@ -129,7 +129,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                                     asm.push(ASMNode::Load(
                                         4,
                                         "t0".to_string(),
-                                        map[ptr].to_string(),
+                                        map.get(ptr).ok_or("Key Not Found")?.to_string(),
                                         "sp".to_string(),
                                     ));
                                     asm.push(ASMNode::Load(
@@ -148,7 +148,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                             asm.push(ASMNode::Store(
                                 ty.size(),
                                 "t1".to_string(),
-                                map[res].to_string(),
+                                map.get(res).ok_or("Key Not Found")?.to_string(),
                                 "sp".to_string(),
                             ));
                         }
@@ -160,7 +160,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                                     asm.push(ASMNode::Load(
                                         4,
                                         "t1".to_string(),
-                                        map[ptr].to_string(),
+                                        map.get(ptr).ok_or("Key Not Found")?.to_string(),
                                         "sp".to_string(),
                                     ));
                                     asm.push(ASMNode::Store(
@@ -185,7 +185,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                                     asm.push(ASMNode::Load(
                                         4,
                                         "t0".to_string(),
-                                        map[ptr].to_string(),
+                                        map.get(ptr).ok_or("Key Not Found")?.to_string(),
                                         "sp".to_string(),
                                     ));
                                 }
@@ -233,7 +233,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                             asm.push(ASMNode::Store(
                                 4,
                                 "t0".to_string(),
-                                map[res].to_string(),
+                                map.get(res).ok_or("Key Not Found")?.to_string(),
                                 "sp".to_string(),
                             ));
                         }
@@ -248,8 +248,8 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                                 match op.as_str() {
                                     "sdiv" => "div".to_string(),
                                     "srem" => "rem".to_string(),
-                                    "shl"=> "sll".to_string(),
-                                    "ashr"=> "sra".to_string(),
+                                    "shl" => "sll".to_string(),
+                                    "ashr" => "sra".to_string(),
                                     _ => op.clone()
                                 },
                                 "t0".to_string(),
@@ -259,7 +259,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                             asm.push(ASMNode::Store(
                                 ty.size(),
                                 "t0".to_string(),
-                                map[res].to_string(),
+                                map.get(res).ok_or("Key Not Found")?.to_string(),
                                 "sp".to_string(),
                             ));
                         }
@@ -348,7 +348,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                             asm.push(ASMNode::Store(
                                 ty.size(),
                                 "t0".to_string(),
-                                map[res].to_string(),
+                                map.get(res).ok_or("Key Not Found")?.to_string(),
                                 "sp".to_string(),
                             ));
                         }
@@ -395,7 +395,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                                 asm.push(ASMNode::Store(
                                     ret_ty.size(),
                                     "a0".to_string(),
-                                    map[res].to_string(),
+                                    map.get(res).ok_or("Key Not Found")?.to_string(),
                                     "sp".to_string(),
                                 ));
                             }
@@ -407,7 +407,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                             asm.push(ASMNode::Load(
                                 4,
                                 "ra".to_string(),
-                                map["#ra"].to_string(),
+                                map.get("#ra").ok_or("Key Not Found")?.to_string(),
                                 "sp".to_string(),
                             ));
                             asm.push(ASMNode::ArithI(
@@ -439,7 +439,7 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
         i += 1;
     }
     asm.append(&mut data);
-    asm
+    Ok(asm)
 }
 
 fn get_val(reg: &String, arg: &String, ty: &IRType, map: &HashMap<String, i32>, asm: &mut Vec<ASMNode>) {
@@ -467,7 +467,10 @@ fn get_val(reg: &String, arg: &String, ty: &IRType, map: &HashMap<String, i32>, 
                     asm.push(ASMNode::Load(
                         ty.size(),
                         reg.clone(),
-                        map[arg].to_string(),
+                        match map.get(arg) {
+                            Some(offset) => offset.to_string(),
+                            None => return
+                        },
                         "sp".to_string(),
                     ));
                 }

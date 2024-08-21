@@ -167,10 +167,16 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                     let ir_nodes = ir::build_ir(&ast);
                     let mut file = File::create("test.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
-                    let asm_nodes = asm::build_asm(&ir_nodes);
-                    file = File::create("test.s")?;
-                    asm::print_asm(&asm_nodes, &mut file).expect("FUCK YOU PRINT_ASM!");
-                    Ok(())
+                    match asm::build_asm(&ir_nodes) {
+                        Ok(asm_nodes) => {
+                            file = File::create("test.s")?;
+                            asm::print_asm(&asm_nodes, &mut file).expect("FUCK YOU PRINT_ASM!");
+                            Ok(())
+                        }
+                        Err(msg) => {
+                            Err(Box::new(io::Error::new(io::ErrorKind::Other, msg)))
+                        }
+                    }
                 }
                 Err((msg, span)) => {
                     println!("\nError: {}\n", msg);
@@ -197,8 +203,12 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    let asm_nodes = asm::build_asm(&ir_nodes);
-                    asm::print_asm(&asm_nodes, &mut io::stdout()).expect("FUCK YOU PRINT_ASM!");
+                    match asm::build_asm(&ir_nodes){
+                        Ok(asm_nodes)=>{
+                            asm::print_asm(&asm_nodes, &mut io::stdout()).expect("FUCK YOU PRINT_ASM!");
+                        }
+                        Err(_)=>{}
+                    }
                 }
                 Err(e) => fail(e.0)
             }

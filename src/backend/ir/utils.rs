@@ -68,7 +68,7 @@ impl IRType {
                 let mut size: i32 = match name.as_str() {
                     "i32" => 4,
                     "i1" => 1,
-                    _ => unreachable!()
+                    _ => 0
                 };
                 for s in sizes {
                     size *= s;
