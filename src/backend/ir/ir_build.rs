@@ -391,8 +391,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             }
         }
         ASTNode::ArrayInit(name, sizes, op, _) => {
-            if let Some(_) = op {
-                unreachable!()
+            if let Some(op) = op {
+                alloc_arr_by_const(op, ctx)
             } else {
                 alloc_arr_by_sizes(name, sizes, 0, ctx)
             }
@@ -1379,7 +1379,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
 // 在最后一层申请类的空间，并把指针存回上一层
 // 第二种是Type [][][] A = new Type [N1][N2][]; 这前面部分同上，但遇到第一个[]时直接终止即可
 // 一个非常麻烦的问题是需要手写循环来申请各层空间
-fn alloc_arr_by_sizes<'a>(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ctx: &mut Context) -> IRInfo {
+fn alloc_arr_by_sizes(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ctx: &mut Context) -> IRInfo {
     let expr = sizes[cur as usize].as_ref().unwrap();
 
     let expr_info = dfs(expr, ctx);
@@ -1505,4 +1505,47 @@ fn alloc_arr_by_sizes<'a>(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ct
         ctx.insert_statement(IRNode::Label(end_label.clone()));
     }
     res_info
+}
+
+// 总是逃不过的，来吧！
+fn alloc_arr_by_const(node: &ASTNode, ctx: &mut Context) -> IRInfo {
+    match node {
+        ASTNode::ArrConst(ch, _) => {
+            let res_name = ctx.generate();
+            ctx.insert_statement(IRNode::Call(
+                Some(res_name.clone()),
+                IRType::PTR(Box::from(IRType::void())),
+                ctx.func_use("CrazyDave..AllocArray", None),
+                vec![
+                    (IRType::i32(), ch.len().to_string())
+                ],
+            ));
+            for (i, node) in ch.iter().enumerate() {
+                let info = alloc_arr_by_const(node, ctx);
+                let idx_name = ctx.generate();
+                ctx.insert_statement(IRNode::GetElementPtr(
+                    idx_name.clone(),
+                    IRType::PTR(Box::from(IRType::void())),
+                    res_name.clone(),
+                    vec![(IRType::i32(), i.to_string())],
+                ));
+                let info_ir_name = info.get_right_ir_name(ctx);
+                ctx.insert_statement(IRNode::Store(
+                    info.ty.clone(),
+                    info_ir_name.clone(),
+                    idx_name.clone(),
+                ));
+            }
+            IRInfo {
+                ty: IRType::PTR(Box::from(IRType::void())),
+                left_ir_name: res_name.clone(),
+                right_ir_name: Some(res_name),
+                lhs_ir_name: None,
+                lhs_ty: IRType::void(),
+            }
+        }
+        _ => {
+            dfs(node, ctx)
+        }
+    }
 }
