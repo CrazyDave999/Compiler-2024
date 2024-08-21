@@ -6,7 +6,7 @@ build:
 	cargo build
 
 run:
-	./target/debug/$(PROJECT_NAME) -fsyntax-only
+	./target/debug/$(PROJECT_NAME)
 
 debug:
 	./target/debug/$(PROJECT_NAME) -debug ./test
