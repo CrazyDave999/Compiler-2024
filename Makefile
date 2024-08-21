@@ -8,6 +8,12 @@ build:
 run:
 	./target/debug/$(PROJECT_NAME) -fsyntax-only
 
+debug:
+	./target/debug/$(PROJECT_NAME) -debug ./test
+
+sema-test-all:
+	./testcases/sema/scripts/test_all.bash './target/debug/compiler-2024 -fsyntax-only' ./testcases/sema
+
 llvm-test:
 	./target/debug/compiler-2024 -emit-test ./test
 	clang -S -O0 test.ll builtin.ll --target=riscv32-unknown-elf

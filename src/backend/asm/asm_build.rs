@@ -248,6 +248,8 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                                 match op.as_str() {
                                     "sdiv" => "div".to_string(),
                                     "srem" => "rem".to_string(),
+                                    "shl"=> "sll".to_string(),
+                                    "ashr"=> "sra".to_string(),
                                     _ => op.clone()
                                 },
                                 "t0".to_string(),
@@ -441,6 +443,15 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
 }
 
 fn get_val(reg: &String, arg: &String, ty: &IRType, map: &HashMap<String, i32>, asm: &mut Vec<ASMNode>) {
+    if arg == "null" {
+        asm.push(ASMNode::ArithI(
+            "addi".to_string(),
+            reg.clone(),
+            "zero".to_string(),
+            "0".to_string(),
+        ));
+        return;
+    }
     match arg.parse::<i32>() {
         Ok(val) => {
             asm.push(ASMNode::ArithI(
@@ -473,7 +484,9 @@ fn get_val(reg: &String, arg: &String, ty: &IRType, map: &HashMap<String, i32>, 
                         format!("%lo({})", &arg[1..]),
                     ));
                 }
-                _ => unreachable!()
+                _ => {
+                    unreachable!()
+                }
             }
         }
     }

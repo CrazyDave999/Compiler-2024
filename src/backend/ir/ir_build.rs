@@ -134,11 +134,13 @@ impl Context {
         *self.size_map.get(name).unwrap()
     }
 
-    pub fn insert_statement(&mut self, node: IRNode) {
+    pub fn insert_statement(&mut self, node: IRNode) -> (bool, usize) { // (is_global, index)
         if self.is_global() {
             self.global_init.push(node);
+            (true, self.global_init.len() - 1)
         } else {
             self.func_defs.push(node);
+            (false, self.func_defs.len() - 1)
         }
     }
 }
@@ -450,7 +452,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                     (IRType::PTR(Box::from(IRType::class("string"))), lhs_ir_name),
                                     (IRType::PTR(Box::from(IRType::class("string"))), rhs_ir_name),
                                 ],
-                            ))
+                            ));
                         }
                     }
 
@@ -764,7 +766,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let else_label = format!("if.else.{}", if_cnt);
             let end_label = format!("if.end.{}", if_cnt);
 
-            // let res_name
+            // for displacing phi
+            let res_name = ctx.generate();
+            let (is_global, index) = ctx.insert_statement(IRNode::Allocate(
+                res_name.clone(),
+                cond_info.ty.clone(),
+            ));
+
 
             ctx.insert_statement(IRNode::BrCond(
                 cond_ir_name,
@@ -775,40 +783,86 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             ctx.insert_statement(IRNode::Label(if_label.clone()));
             ctx.last_label = if_label.clone();
             let expr1_info = dfs(expr1, ctx);
-            let expr1_last_label = ctx.last_label.clone();
+            // let expr1_last_label = ctx.last_label.clone();
             let expr1_ir_name = expr1_info.get_right_ir_name(ctx);
+
+            // for displacing phi
+            if expr1_info.ty.is_void() {
+                if is_global {
+                    ctx.global_init.remove(index);
+                } else {
+                    ctx.func_defs.remove(index);
+                }
+            } else {
+                if is_global {
+                    ctx.global_init[index] = IRNode::Allocate(
+                        res_name.clone(),
+                        expr1_info.ty.clone(),
+                    );
+                } else {
+                    ctx.func_defs[index] = IRNode::Allocate(
+                        res_name.clone(),
+                        expr1_info.ty.clone(),
+                    );
+                }
+                ctx.insert_statement(IRNode::Store(
+                    expr1_info.ty.clone(),
+                    expr1_ir_name.clone(),
+                    res_name.clone(),
+                ));
+            }
+
+
             ctx.insert_statement(IRNode::Br(end_label.clone()));
 
             ctx.insert_statement(IRNode::Label(else_label.clone()));
             ctx.last_label = else_label.clone();
             let expr2_info = dfs(expr2, ctx);
-            let expr2_last_label = ctx.last_label.clone();
+            // let expr2_last_label = ctx.last_label.clone();
             let expr2_ir_name = expr2_info.get_right_ir_name(ctx);
+
+            // for displacing phi
+            if !expr2_info.ty.is_void() {
+                ctx.insert_statement(IRNode::Store(
+                    expr2_info.ty.clone(),
+                    expr2_ir_name.clone(),
+                    res_name.clone(),
+                ));
+            }
+
             ctx.insert_statement(IRNode::Br(end_label.clone()));
 
             ctx.func_defs.push(IRNode::Label(end_label.clone()));
             ctx.last_label = end_label;
 
 
-            let res_name = if expr1_info.ty.is_void() {
-                String::from("")
-            } else {
-                let cond_name = ctx.generate();
-                ctx.insert_statement(IRNode::Phi(
-                    cond_name.clone(),
-                    expr1_info.ty.clone(),
-                    vec![
-                        (expr1_ir_name, expr1_last_label),
-                        (expr2_ir_name, expr2_last_label),
-                    ],
-                ));
-                cond_name
-            };
+            // let res_name = if expr1_info.ty.is_void() {
+            //     String::from("")
+            // } else {
+            //     let cond_name = ctx.generate();
+            //     ctx.insert_statement(IRNode::Phi(
+            //         cond_name.clone(),
+            //         expr1_info.ty.clone(),
+            //         vec![
+            //             (expr1_ir_name, expr1_last_label),
+            //             (expr2_ir_name, expr2_last_label),
+            //         ],
+            //     ));
+            //     cond_name
+            // };
 
             IRInfo {
-                ty: expr1_info.ty,
-                left_ir_name: String::from(""),
-                right_ir_name: Some(res_name),
+                ty: expr1_info.ty.clone(),
+                left_ir_name: if expr1_info.ty.is_void() {
+                    String::from("")
+                } else {
+                    res_name.clone()
+                },
+                right_ir_name: if expr1_info.ty.is_void() {
+                    Some(String::from(""))
+                } else {
+                    None
+                },
                 lhs_ir_name: None,
                 lhs_ty: IRType::void(),
             }
