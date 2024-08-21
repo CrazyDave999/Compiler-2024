@@ -57,21 +57,12 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                 alloc_size += max_call_arg_spill;
                 // alloc_size 应是16的倍数
                 alloc_size = (alloc_size + 15) / 16 * 16;
-                asm.push(ASMNode::ArithI(
-                    "addi".to_string(),
-                    "sp".to_string(),
-                    "sp".to_string(),
-                    (-alloc_size).to_string(),
-                ));
+                addi(&"sp".to_string(), &"sp".to_string(), -alloc_size, &mut asm);
                 let mut offset = alloc_size;
                 let mut map: HashMap<String, i32> = HashMap::new(); // name, offset
                 offset -= 4;
-                asm.push(ASMNode::Store(
-                    4,
-                    "ra".to_string(),
-                    offset.to_string(),
-                    "sp".to_string(),
-                ));
+
+                store(4, &"ra".to_string(), offset, &"sp".to_string(), &mut asm);
                 map.insert("#ra".to_string(), offset);
 
                 let mut arg_spill = 0;
@@ -79,12 +70,8 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                     if j <= 7 {
                         offset -= 4;
                         map.insert(name.clone(), offset);
-                        asm.push(ASMNode::Store(
-                            ty.size(),
-                            format!("a{}", j),
-                            offset.to_string(),
-                            "sp".to_string(),
-                        ));
+
+                        store(ty.size(), &format!("a{}", j), offset, &"sp".to_string(), &mut asm);
                     } else {
                         map.insert(name.clone(), alloc_size + arg_spill);
                         arg_spill += 4;
@@ -101,18 +88,15 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                             offset -= 4;
                             map.insert(res.clone(), offset);
                             offset -= 4;
-                            asm.push(ASMNode::ArithI(
-                                "addi".to_string(),
-                                "t0".to_string(),
-                                "sp".to_string(),
-                                offset.to_string(),
-                            ));
-                            asm.push(ASMNode::Store(
+                            addi(&"t0".to_string(), &"sp".to_string(), offset, &mut asm);
+
+                            store(
                                 4,
-                                "t0".to_string(),
-                                map.get(res).ok_or("Key Not Found")?.to_string(),
-                                "sp".to_string(),
-                            ));
+                                &"t0".to_string(),
+                                *map.get(res).ok_or("Key Not Found")?,
+                                &"sp".to_string(),
+                                &mut asm,
+                            );
                         }
                         IRNode::Load(res, ty, ptr) => {
                             // 把一个地址处的东西放入虚拟寄存器，在最蠢的想法里，就是把那个地址处的东西拿出来，存到虚拟寄存器对应的栈空间
@@ -120,18 +104,20 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                             map.insert(res.clone(), offset);
                             match ptr.chars().nth(0).unwrap() {
                                 '%' => {
-                                    asm.push(ASMNode::Load(
+                                    load(
                                         4,
-                                        "t0".to_string(),
-                                        map.get(ptr).ok_or("Key Not Found")?.to_string(),
-                                        "sp".to_string(),
-                                    ));
-                                    asm.push(ASMNode::Load(
+                                        &"t0".to_string(),
+                                        *map.get(ptr).ok_or("Key Not Found")?,
+                                        &"sp".to_string(),
+                                        &mut asm,
+                                    );
+                                    load(
                                         ty.size(),
-                                        "t1".to_string(),
-                                        0.to_string(),
-                                        "t0".to_string(),
-                                    ));
+                                        &"t1".to_string(),
+                                        0,
+                                        &"t0".to_string(),
+                                        &mut asm,
+                                    );
                                 }
                                 '@' => {
                                     load_global(&"t1".to_string(), &ptr[1..].to_string(), ty, &mut asm);
@@ -139,30 +125,34 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                                 _ => unreachable!()
                             }
 
-                            asm.push(ASMNode::Store(
+                            store(
                                 ty.size(),
-                                "t1".to_string(),
-                                map.get(res).ok_or("Key Not Found")?.to_string(),
-                                "sp".to_string(),
-                            ));
+                                &"t1".to_string(),
+                                *map.get(res).ok_or("Key Not Found")?,
+                                &"sp".to_string(),
+                                &mut asm,
+                            );
                         }
                         IRNode::Store(ty, val, ptr) => {
                             get_val(&"t0".to_string(), val, ty, &map, &mut asm);
 
                             match ptr.chars().nth(0).unwrap() {
                                 '%' => {
-                                    asm.push(ASMNode::Load(
+                                    load(
                                         4,
-                                        "t1".to_string(),
-                                        map.get(ptr).ok_or("Key Not Found")?.to_string(),
-                                        "sp".to_string(),
-                                    ));
-                                    asm.push(ASMNode::Store(
+                                        &"t1".to_string(),
+                                        *map.get(ptr).ok_or("Key Not Found")?,
+                                        &"sp".to_string(),
+                                        &mut asm,
+                                    );
+
+                                    store(
                                         ty.size(),
-                                        "t0".to_string(),
-                                        0.to_string(),
-                                        "t1".to_string(),
-                                    ));
+                                        &"t0".to_string(),
+                                        0,
+                                        &"t1".to_string(),
+                                        &mut asm,
+                                    );
                                 }
                                 '@' => {
                                     store_global(&"t0".to_string(), &"t1".to_string(), &ptr[1..].to_string(), ty, &mut asm);
@@ -176,12 +166,13 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
 
                             match ptr.chars().nth(0).unwrap() {
                                 '%' => {
-                                    asm.push(ASMNode::Load(
+                                    load(
                                         4,
-                                        "t0".to_string(),
-                                        map.get(ptr).ok_or("Key Not Found")?.to_string(),
-                                        "sp".to_string(),
-                                    ));
+                                        &"t0".to_string(),
+                                        *map.get(ptr).ok_or("Key Not Found")?,
+                                        &"sp".to_string(),
+                                        &mut asm,
+                                    )
                                 }
                                 '@' => {
                                     load_global(
@@ -224,12 +215,14 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                                     "t1".to_string(),
                                 ));
                             }
-                            asm.push(ASMNode::Store(
+
+                            store(
                                 4,
-                                "t0".to_string(),
-                                map.get(res).ok_or("Key Not Found")?.to_string(),
-                                "sp".to_string(),
-                            ));
+                                &"t0".to_string(),
+                                *map.get(res).ok_or("Key Not Found")?,
+                                &"sp".to_string(),
+                                &mut asm,
+                            );
                         }
                         IRNode::Binary(res, op, ty, lhs, rhs) => {
                             offset -= 4;
@@ -250,12 +243,14 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                                 "t0".to_string(),
                                 "t1".to_string(),
                             ));
-                            asm.push(ASMNode::Store(
+
+                            store(
                                 ty.size(),
-                                "t0".to_string(),
-                                map.get(res).ok_or("Key Not Found")?.to_string(),
-                                "sp".to_string(),
-                            ));
+                                &"t0".to_string(),
+                                *map.get(res).ok_or("Key Not Found")?,
+                                &"sp".to_string(),
+                                &mut asm,
+                            );
                         }
                         IRNode::ICMP(res, cond, ty, lhs, rhs) => {
                             offset -= 4;
@@ -339,12 +334,14 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                                 }
                                 _ => unreachable!()
                             }
-                            asm.push(ASMNode::Store(
+
+                            store(
                                 ty.size(),
-                                "t0".to_string(),
-                                map.get(res).ok_or("Key Not Found")?.to_string(),
-                                "sp".to_string(),
-                            ));
+                                &"t0".to_string(),
+                                *map.get(res).ok_or("Key Not Found")?,
+                                &"sp".to_string(),
+                                &mut asm,
+                            );
                         }
                         IRNode::BrCond(cond, label1, label2) => {
                             get_val(&"t0".to_string(), cond, &IRType::i1(), &map, &mut asm);
@@ -374,42 +371,41 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                                     get_val(&format!("a{}", j), arg, ty, &map, &mut asm);
                                 } else {
                                     get_val(&"t0".to_string(), arg, ty, &map, &mut asm);
-                                    asm.push(ASMNode::Store(
+                                    store(
                                         ty.size(),
-                                        "t0".to_string(),
-                                        call_arg_spill.to_string(),
-                                        "sp".to_string(),
-                                    ));
+                                        &"t0".to_string(),
+                                        call_arg_spill,
+                                        &"sp".to_string(),
+                                        &mut asm,
+                                    );
                                     call_arg_spill += 4;
                                 }
                             }
                             asm.push(ASMNode::Call(name.clone()));
                             if let Some(res) = res {
                                 // 返回值在a0里面
-                                asm.push(ASMNode::Store(
+                                store(
                                     ret_ty.size(),
-                                    "a0".to_string(),
-                                    map.get(res).ok_or("Key Not Found")?.to_string(),
-                                    "sp".to_string(),
-                                ));
+                                    &"a0".to_string(),
+                                    *map.get(res).ok_or("Key Not Found")?,
+                                    &"sp".to_string(),
+                                    &mut asm,
+                                );
                             }
                         }
                         IRNode::Ret(ty, res) => {
                             if let Some(res) = res {
                                 get_val(&"a0".to_string(), res, ty, &map, &mut asm);
                             }
-                            asm.push(ASMNode::Load(
+
+                            load(
                                 4,
-                                "ra".to_string(),
-                                map.get("#ra").ok_or("Key Not Found")?.to_string(),
-                                "sp".to_string(),
-                            ));
-                            asm.push(ASMNode::ArithI(
-                                "addi".to_string(),
-                                "sp".to_string(),
-                                "sp".to_string(),
-                                alloc_size.to_string(),
-                            ));
+                                &"ra".to_string(),
+                                *map.get("#ra").ok_or("Key Not Found")?,
+                                &"sp".to_string(),
+                                &mut asm,
+                            );
+                            addi(&"sp".to_string(), &"sp".to_string(), alloc_size, &mut asm);
                             asm.push(ASMNode::Ret);
                         }
                         IRNode::FuncEnd => { break; }
@@ -450,38 +446,17 @@ fn get_val(reg: &String, arg: &String, ty: &IRType, map: &HashMap<String, i32>, 
     match arg.parse::<i32>() {
         Ok(val) => {
             // 范围应在[-2048, 2047]
-            if val >= -2048 && val <= 2047 {
-                asm.push(ASMNode::ArithI(
-                    "addi".to_string(),
-                    reg.clone(),
-                    "zero".to_string(),
-                    val.to_string(),
-                ));
-            } else {
-                asm.push(ASMNode::Lui(
-                    reg.clone(),
-                    (val >> 12).to_string(),
-                ));
-                asm.push(ASMNode::ArithI(
-                    "addi".to_string(),
-                    reg.clone(),
-                    reg.clone(),
-                    (val & 0xfff).to_string(),
-                ));
-            }
+            addi(reg, &"zero".to_string(), val, asm);
         }
         Err(_) => {
             match arg.chars().nth(0).unwrap() {
                 '%' => {
-                    asm.push(ASMNode::Load(
-                        ty.size(),
-                        reg.clone(),
-                        match map.get(arg) {
-                            Some(offset) => offset.to_string(),
-                            None => return
-                        },
-                        "sp".to_string(),
-                    ));
+                    match map.get(arg) {
+                        Some(offset) => {
+                            load(ty.size(), reg, *offset, &"sp".to_string(), asm);
+                        }
+                        None => return
+                    }
                 }
                 '@' => {
                     // 取得地址，而不是值
@@ -527,4 +502,82 @@ fn store_global(src_reg: &String, tmp_reg: &String, name: &String, ty: &IRType, 
         format!("%lo({})", name),
         tmp_reg.clone(),
     ));
+}
+
+fn addi(rd: &String, rs: &String, imm: i32, asm: &mut Vec<ASMNode>) {
+    if imm >= -2048 && imm <= 2047 {
+        asm.push(ASMNode::ArithI(
+            "addi".to_string(),
+            rd.clone(),
+            rs.clone(),
+            imm.to_string(),
+        ));
+    } else {
+        let ext = sext_12(imm & 0xfff);
+        let mut upper = (imm as u32 >> 12) as i32;
+        if ext < 0 {
+            upper += 1;
+        }
+        asm.push(ASMNode::Lui(
+            "t2".to_string(),
+            upper.to_string(),
+        ));
+        asm.push(ASMNode::ArithI(
+            "addi".to_string(),
+            "t2".to_string(),
+            "t2".to_string(),
+            ext.to_string(),
+        ));
+        asm.push(ASMNode::Arith(
+            "add".to_string(),
+            rd.clone(),
+            rs.clone(),
+            "t2".to_string(),
+        ))
+    }
+}
+
+fn store(size: i32, rs2: &String, imm: i32, rs1: &String, asm: &mut Vec<ASMNode>) {
+    if imm >= -2048 && imm <= 2047 {
+        asm.push(ASMNode::Store(
+            size,
+            rs2.clone(),
+            imm.to_string(),
+            rs1.clone(),
+        ));
+    } else {
+        addi(&"t3".to_string(), rs1, imm, asm);
+        asm.push(ASMNode::Store(
+            size,
+            rs2.clone(),
+            "0".to_string(),
+            "t3".to_string(),
+        ));
+    }
+}
+fn load(size: i32, rd: &String, imm: i32, rs: &String, asm: &mut Vec<ASMNode>) {
+    if imm >= -2048 && imm <= 2047 {
+        asm.push(ASMNode::Load(
+            size,
+            rd.clone(),
+            imm.to_string(),
+            rs.clone(),
+        ));
+    } else {
+        addi(&"t3".to_string(), rs, imm, asm);
+        asm.push(ASMNode::Load(
+            size,
+            rd.clone(),
+            "0".to_string(),
+            "t3".to_string(),
+        ));
+    }
+}
+
+fn sext_12(imm: i32) -> i32 {
+    if imm & 0x800 != 0 {
+        (imm as u32 | 0xfffff000u32) as i32
+    } else {
+        imm
+    }
 }
