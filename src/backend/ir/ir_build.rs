@@ -1312,6 +1312,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 lhs_ty: IRType::void(),
             }
         }
+        ASTNode::ArrConst(_, _) => {
+            alloc_arr_by_const(ast, ctx)
+        }
         ASTNode::Ident(name, _, idx, ty, cnt, is_global) => {
             if *idx != -1 {
                 // 成员
@@ -1367,9 +1370,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 }
             }
         }
-        _ => {
-            IRInfo::void()
-        }
+        // _ => {
+        //     IRInfo::void()
+        // }
     }
 }
 
