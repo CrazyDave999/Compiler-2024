@@ -220,7 +220,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                     for _ in 0..vars.len() {
                                         let ir_ty = IRType::from(ty);
                                         fields.push(ir_ty.clone());
-                                        size += ir_ty.size();
+                                        size += 4;
                                     }
                                 }
                                 _ => {}

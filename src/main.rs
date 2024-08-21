@@ -185,10 +185,35 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 }
+fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
+    let mut input = String::new();
+    match io::stdin().read_to_string(&mut input) {
+        Ok(_) => (),
+        Err(e) => fail(&format!("Error reading input: {}", e))
+    }
+    match ast::MxParser::parse(ast::Rule::file, &input) {
+        Ok(pairs) => {
+            let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
+            match semantic::check(&mut ast) {
+                Ok(_) => {
+                    let ir_nodes = ir::build_ir(&ast);
+                    let asm_nodes = asm::build_asm(&ir_nodes);
+                    asm::print_asm(&asm_nodes, &mut io::stdout()).expect("FUCK YOU PRINT_ASM!");
+                }
+                Err(e) => fail(e.0)
+            }
+        }
+        Err(_) => fail("Invalid Identifier")
+    }
+    Ok(())
+}
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_args: Vec<_> = env::args().collect();
+    if env_args.len() <= 1 {
+        return asm_oj();
+    }
     match env_args[1].as_str() {
         "-fsyntax-only" => syntax_only_oj(),
         "-fsyntax-test" => syntax_only_test(env_args[2].as_str()),

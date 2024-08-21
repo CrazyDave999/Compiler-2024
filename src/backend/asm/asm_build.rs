@@ -176,7 +176,67 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                                 _ => unreachable!()
                             }
                         }
-                        IRNode::GetElementPtr(_, _, _, _) => {}
+                        IRNode::GetElementPtr(res, ty, ptr, indexes) => {
+                            offset -= 4;
+                            map.insert(res.clone(), offset);
+
+                            match ptr.chars().nth(0).unwrap() {
+                                '%' => {
+                                    asm.push(ASMNode::Load(
+                                        4,
+                                        "t0".to_string(),
+                                        map[ptr].to_string(),
+                                        "sp".to_string(),
+                                    ));
+                                }
+                                '@' => {
+                                    load_global(
+                                        &"t0".to_string(),
+                                        &ptr[1..].to_string(),
+                                        &IRType::PTR(Box::from(ty.clone())),
+                                        &mut asm,
+                                    );
+                                }
+                                _ => unreachable!()
+                            }
+                            let first_ind = &indexes[0];
+                            get_val(&"t1".to_string(), &first_ind.1, &first_ind.0, &map, &mut asm);
+                            asm.push(ASMNode::ArithI(
+                                "slli".to_string(),
+                                "t1".to_string(),
+                                "t1".to_string(),
+                                "2".to_string(),
+                            ));
+                            asm.push(ASMNode::Arith(
+                                "add".to_string(),
+                                "t0".to_string(),
+                                "t0".to_string(),
+                                "t1".to_string(),
+                            ));
+                            // 逐步解引用，indexes中最多两个元素
+                            if indexes.len() > 1 {
+                                let second_ind = &indexes[1];
+                                get_val(&"t1".to_string(), &second_ind.1, &second_ind.0, &map, &mut asm);
+                                asm.push(ASMNode::ArithI(
+                                    "slli".to_string(),
+                                    "t1".to_string(),
+                                    "t1".to_string(),
+                                    "2".to_string(),
+                                ));
+                                asm.push(ASMNode::Arith(
+                                    "add".to_string(),
+                                    "t0".to_string(),
+                                    "t0".to_string(),
+                                    "t1".to_string(),
+                                ));
+                            }
+                            asm.push(ASMNode::Store(
+                                4,
+                                "t0".to_string(),
+                                map[res].to_string(),
+                                "sp".to_string(),
+                            ));
+                        }
                         IRNode::Binary(res, op, ty, lhs, rhs) => {
                             offset -= ty.size();
                             map.insert(res.clone(), offset);
@@ -185,7 +245,11 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Vec<ASMNode> {
                             get_val(&"t1".to_string(), rhs, ty, &map, &mut asm);
 
                             asm.push(ASMNode::Arith(
-                                op.clone(),
+                                match op.as_str() {
+                                    "sdiv" => "div".to_string(),
+                                    "srem" => "rem".to_string(),
+                                    _ => op.clone()
+                                },
                                 "t0".to_string(),
                                 "t0".to_string(),
                                 "t1".to_string(),
