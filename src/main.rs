@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io;
 use std::io::Read;
 use pest::{Parser, Span};
+use std::io::Write;
 
 pub mod frontend;
 use frontend::ast;
@@ -170,6 +171,8 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                     match asm::build_asm(&ir_nodes) {
                         Ok(asm_nodes) => {
                             file = File::create("test.s")?;
+                            let builtin = fs::read_to_string("builtin1.s").unwrap();
+                            write!(file, "{}", builtin).unwrap();
                             asm::print_asm(&asm_nodes, &mut file).expect("FUCK YOU PRINT_ASM!");
                             Ok(())
                         }
@@ -203,11 +206,13 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    match asm::build_asm(&ir_nodes){
-                        Ok(asm_nodes)=>{
+                    match asm::build_asm(&ir_nodes) {
+                        Ok(asm_nodes) => {
+                            let builtin = fs::read_to_string("builtin1.s").unwrap();
+                            write!(io::stdout(), "{}", builtin).unwrap();
                             asm::print_asm(&asm_nodes, &mut io::stdout()).expect("FUCK YOU PRINT_ASM!");
                         }
-                        Err(_)=>{}
+                        Err(_) => {}
                     }
                 }
                 Err(e) => fail(e.0)
