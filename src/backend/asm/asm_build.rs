@@ -7,7 +7,8 @@ use super::IRType;
 
 pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
     let mut asm = Vec::new();
-    let mut data = Vec::new();
+    let mut bss = Vec::new();
+    let mut rodata = Vec::new();
 
     let mut beq_cnt = 0;
     let mut i = 0;
@@ -422,22 +423,23 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                 }
             }
             IRNode::Global(name, ty, _) => {
-                data.push(ASMNode::Section(".sbss".to_string()));
-                data.push(ASMNode::Global(name.clone()));
-                data.push(ASMNode::Align(2));
-                data.push(ASMNode::Label(name.clone()));
-                data.push(ASMNode::Data(ty.size(), 0));
+                bss.push(ASMNode::Global(name.clone()));
+                bss.push(ASMNode::Align(2));
+                bss.push(ASMNode::Label(name.clone()));
+                bss.push(ASMNode::Data(ty.size(), 0));
             }
             IRNode::Str(name, _, _, original) => {
-                data.push(ASMNode::Section(".rodata".to_string()));
-                data.push(ASMNode::Label(name.clone()));
-                data.push(ASMNode::Str(original.clone()));
+                rodata.push(ASMNode::Label(name.clone()));
+                rodata.push(ASMNode::Str(original.clone()));
             }
             _ => {}
         }
         i += 1;
     }
-    asm.append(&mut data);
+    asm.push(ASMNode::Segment(".bss".to_string()));
+    asm.append(&mut bss);
+    asm.push(ASMNode::Segment(".rodata".to_string()));
+    asm.append(&mut rodata);
     Ok(asm)
 }
 

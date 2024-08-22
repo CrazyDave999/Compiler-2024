@@ -11,7 +11,7 @@ pub enum ASMNode {
     ArithI(String, String, String, String), // op rd rs1 imm
     Label(String),
     Call(String), // call symbol
-    Text,
+    Segment(String),
     Global(String),
     Data(i32, i32), // length, value
     Str(String),
@@ -64,8 +64,8 @@ impl Display for ASMNode {
             ASMNode::Call(symbol) => {
                 write!(f, "call {}\n", symbol)
             }
-            ASMNode::Text => {
-                write!(f, ".text\n")
+            ASMNode::Segment(s) => {
+                write!(f, "{}\n", s)
             }
             ASMNode::Global(symbol) => {
                 write!(f, ".globl {}\n", symbol)
