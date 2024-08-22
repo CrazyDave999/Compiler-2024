@@ -9,7 +9,9 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
     let mut asm = Vec::new();
     let mut data = Vec::new();
 
+    let mut beq_cnt = 0;
     let mut i = 0;
+
     while i < ir.len() {
         match &ir[i] {
             IRNode::FuncBegin(_, name, args) => {
@@ -345,15 +347,21 @@ pub fn build_asm(ir: &Vec<IRNode>) -> Result<Vec<ASMNode>, String> {
                         }
                         IRNode::BrCond(cond, label1, label2) => {
                             get_val(&"t0".to_string(), cond, &IRType::i1(), &map, &mut asm);
+                            let beq_label = format!(".beq.{}", beq_cnt);
                             asm.push(ASMNode::Branch(
                                 "beq".to_string(),
                                 "t0".to_string(),
                                 "zero".to_string(),
-                                label2.clone(),
+                                beq_label.clone(),
                             ));
                             asm.push(ASMNode::J(
                                 label1.clone(),
                             ));
+                            asm.push(ASMNode::Label(beq_label.clone()));
+                            asm.push(ASMNode::J(
+                                label2.clone()
+                            ));
+                            beq_cnt += 1;
                         }
                         IRNode::Br(label) => {
                             asm.push(ASMNode::J(

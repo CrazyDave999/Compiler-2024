@@ -26,6 +26,6 @@ llvm-test-all:
 asm-test:
 	./target/debug/compiler-2024 -test ./test
 	#ravel --input-file=test.in --output-file=test.out test.s builtin.s
-	reimu -i=test.in -o test.out -s 128k
+	reimu -i=test.in -o test.out
 asm-test-all:
 	./testcases/codegen/scripts/test_asm_all.bash './target/debug/compiler-2024' ./testcases/codegen ./builtin.s
