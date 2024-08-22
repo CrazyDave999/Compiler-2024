@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::backend::ir::utils::escape_string;
+use super::utils::escape_string;
 use super::IRType;
 use super::IRNode;
 use super::ast::ASTNode;

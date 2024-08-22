@@ -11,8 +11,9 @@ use frontend::ast;
 use frontend::visualize;
 use frontend::semantic;
 
+pub mod middleend;
+use middleend::ir;
 pub mod backend;
-use backend::ir;
 use backend::asm;
 
 
