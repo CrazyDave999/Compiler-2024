@@ -13,6 +13,7 @@ pub struct BasicBlock {
     pub df: Vec<String>,
     pub allocate: Vec<(String, IRType)>,
     pub store: HashSet<String>,
+    pub mv: Vec<IRNode>,
 }
 impl BasicBlock {
     pub fn from(ir: Vec<IRNode>) -> Self {
@@ -49,6 +50,7 @@ impl BasicBlock {
                     _ => None,
                 }
             }).collect(),
+            mv: Vec::new(),
         }
     }
 }

@@ -20,12 +20,13 @@ pub enum IRNode {
     Phi(String, IRType, Vec<(String, String)>), // res, ty, vars and labels
     Select(String, String, IRType, String, String), // res, cond, ty, val1, val2
     Label(String),
+    Move( String, String), // rd, rs
 }
 
-impl IRNode{
+impl IRNode {
     pub fn is_terminator(&self) -> bool {
         match self {
-            IRNode::Br(_) | IRNode::BrCond(_, _, _)  => true,
+            IRNode::Br(_) | IRNode::BrCond(_, _, _) => true,
             _ => false
         }
     }
@@ -40,7 +41,7 @@ impl Display for IRNode {
             IRNode::Global(name, ty, val) => {
                 write!(f, "@{} = global {} {}\n", name, ty, val)
             }
-            IRNode::Str(name, ty, val,_) => {
+            IRNode::Str(name, ty, val, _) => {
                 write!(f, "@{} = private unnamed_addr constant {} c\"{}\\00\"\n", name, ty, val)
             }
             IRNode::FuncBegin(ret_ty, name, args) => {
@@ -133,6 +134,9 @@ impl Display for IRNode {
             }
             IRNode::Label(label) => {
                 write!(f, "{}:\n", label)
+            }
+            IRNode::Move( rd, rs) => {
+                write!(f, "; ### Move {} <- {} ###\n", rd, rs)
             }
         }
     }

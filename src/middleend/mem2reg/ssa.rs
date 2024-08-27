@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
-use super::{IRNode, IRType};
+use std::collections::HashMap;
+use super::IRNode;
 use super::cfg_build::BasicBlock;
 
 // to eliminate critical edges
@@ -69,6 +69,30 @@ fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) 
     }
 }
 
+// eliminate phi and insert move
 pub fn eliminate_phi(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) {
     put_blank_bb(cfg, names);
+    for name in &*names {
+        let mut mv_nodes = Vec::new();
+        for (_, phi) in &cfg.get(name).unwrap().phi.clone() {
+            match phi {
+                IRNode::Phi(res, _, args) => {
+                    for (val, label) in args {
+                        mv_nodes.push((
+                            label.clone(),
+                            IRNode::Move(
+                                res.clone(),
+                                val.clone(),
+                            )
+                        ));
+                    }
+                }
+                _ => unreachable!()
+            }
+        }
+        for (label, mv) in &mv_nodes {
+            cfg.get_mut(label).unwrap().mv.push(mv.clone());
+        }
+        cfg.get_mut(name).unwrap().phi.clear();
+    }
 }

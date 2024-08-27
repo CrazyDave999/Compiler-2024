@@ -53,7 +53,7 @@ fn get_ir(cfg: &HashMap<String, BasicBlock>, names: &Vec<String>, allocated_vars
             1
         };
 
-        for ir in &bb.ir[start..] {
+        for ir in &bb.ir[start..bb.ir.len()-1] {
             match ir {
                 IRNode::Allocate(_, _) => {
                     continue;
@@ -68,6 +68,12 @@ fn get_ir(cfg: &HashMap<String, BasicBlock>, names: &Vec<String>, allocated_vars
                 _ => { res.push(ir.clone()); }
             }
         }
+
+        for mv in &bb.mv {
+            res.push(mv.clone());
+        }
+
+        res.push(bb.ir.last().unwrap().clone());
     }
     res
 }
