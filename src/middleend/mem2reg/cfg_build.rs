@@ -4,7 +4,7 @@ use super::IRNode;
 
 #[derive(Clone)]
 pub struct BasicBlock {
-    pub ch: Vec<String>,
+    pub ch: HashSet<String>,
     pub ir: Vec<IRNode>,
     pub phi: HashMap<String, IRNode>, // var name -> phi inst
     pub dom: HashSet<String>,
@@ -19,12 +19,17 @@ impl BasicBlock {
         BasicBlock {
             ch: match ir.last().unwrap() {
                 IRNode::Br(label) => {
-                    vec![label.clone()]
+                    let mut ch = HashSet::new();
+                    ch.insert(label.clone());
+                    ch
                 }
                 IRNode::BrCond(_, label1, label2) => {
-                    vec![label1.clone(), label2.clone()]
+                    let mut ch = HashSet::new();
+                    ch.insert(label1.clone());
+                    ch.insert(label2.clone());
+                    ch
                 }
-                _ => vec![]
+                _ => HashSet::new(),
             },
             ir: ir.clone(),
             phi: HashMap::new(),

@@ -3,6 +3,7 @@ use super::IRNode;
 use super::cfg_build::{BasicBlock, build_cfg};
 use super::dt_build::build_dt;
 use super::phi_put::put_phi;
+use super::ssa::eliminate_phi;
 pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
     let mut res = Vec::new();
     let mut in_func = false;
@@ -14,9 +15,10 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
                 in_func = true;
             }
             IRNode::FuncEnd => {
-                let (mut cfg, names) = build_cfg(func_inner.clone());
+                let (mut cfg, mut names) = build_cfg(func_inner.clone());
                 build_dt(&mut cfg, &names);
                 let allocated_vars = put_phi(&mut cfg, &names);
+                eliminate_phi(&mut cfg, &mut names);
                 res.extend(get_ir(&cfg, &names, &allocated_vars));
 
                 func_inner.clear();

@@ -177,8 +177,14 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    let mut file = File::create("test.ll")?;
+
+                    let mut file = File::create("origin.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+
+                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
+                    file = File::create("test.ll")?;
+                    ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+
                     match asm::build_asm(&ir_nodes) {
                         Ok(asm_nodes) => {
                             file = File::create("test.s")?;
