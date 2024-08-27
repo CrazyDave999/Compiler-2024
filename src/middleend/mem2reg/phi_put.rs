@@ -47,84 +47,33 @@ pub fn put_phi(cfg: &mut HashMap<String, BasicBlock>, names: &Vec<String>) -> Ha
 
     let mut rep = HashMap::new();
     for (var, _) in &allocated {
-        dfs_rename(var, &String::from("entry"), cfg, names, &mut Vec::new(), &mut rep);
+        dfs_write_phi(var, &String::from("entry"), cfg, names, &mut Vec::new(), &mut rep);
     }
+    // let _rep = rep.clone();
+    rename(cfg, &rep);
+    supply_phi(cfg);
     allocated.iter().map(|(var, _)| var.clone()).collect()
 }
 
 // write back the parameters of phi instructions
-fn dfs_rename(alloc_var: &String, cur: &String, cfg: &mut HashMap<String, BasicBlock>, names: &Vec<String>, stk: &mut Vec<String>, rep: &mut HashMap<String, String>) {
+fn dfs_write_phi(alloc_var: &String, cur: &String, cfg: &mut HashMap<String, BasicBlock>, names: &Vec<String>, stk: &mut Vec<String>, rep: &mut HashMap<String, String>) {
     let cur_stk_len = stk.len();
 
-    let _f1 = *alloc_var == "%p.29";
+    // let _f1 = *alloc_var == "%p.29";
     let bb = cfg.get_mut(cur).unwrap();
-    if let Some(IRNode::Phi(res, _, args)) = bb.phi.get_mut(alloc_var) {
+    if let Some(IRNode::Phi(res, _, _)) = bb.phi.get_mut(alloc_var) {
         stk.push(res.clone());
-        for (val, _) in args {
-            if let Some(new_val) = rep.get(val) {
-                *val = new_val.clone();
-            }
-        }
     }
     for ir in &mut bb.ir {
         match ir {
-            IRNode::Binary(_, _, _, lhs, rhs) => {
-                if let Some(new_val) = rep.get(lhs) {
-                    *lhs = new_val.clone();
-                }
-                if let Some(new_val) = rep.get(rhs) {
-                    *rhs = new_val.clone();
-                }
-            }
-            IRNode::BrCond(cond, _, _) => {
-                if let Some(new_val) = rep.get(cond) {
-                    *cond = new_val.clone();
-                }
-            }
-            IRNode::Ret(_, Some(val)) => {
-                if let Some(new_val) = rep.get(val) {
-                    *val = new_val.clone();
-                }
-            }
             IRNode::Load(res, _, ptr) => {
                 if ptr == alloc_var {
                     rep.insert(res.clone(), stk.last().unwrap().clone());
                 }
             }
             IRNode::Store(_, val, ptr) => {
-                if let Some(new_val) = rep.get(val) {
-                    *val = new_val.clone();
-                }
                 if ptr == alloc_var {
                     stk.push(val.clone());
-                }
-            }
-            IRNode::GetElementPtr(_, _, ptr, indexes) => {
-                if let Some(new_val) = rep.get(ptr) {
-                    *ptr = new_val.clone();
-                }
-                for (_, idx) in indexes {
-                    if let Some(new_val) = rep.get(idx) {
-                        *idx = new_val.clone();
-                    }
-                }
-            }
-            IRNode::ICMP(_, cond, _, op1, op2) => {
-                if let Some(new_val) = rep.get(cond) {
-                    *cond = new_val.clone();
-                }
-                if let Some(new_val) = rep.get(op1) {
-                    *op1 = new_val.clone();
-                }
-                if let Some(new_val) = rep.get(op2) {
-                    *op2 = new_val.clone();
-                }
-            }
-            IRNode::Call(_, _, _, args) => {
-                for (_, arg) in args {
-                    if let Some(new_val) = rep.get(arg) {
-                        *arg = new_val.clone();
-                    }
                 }
             }
             _ => {}
@@ -141,8 +90,136 @@ fn dfs_rename(alloc_var: &String, cur: &String, cfg: &mut HashMap<String, BasicB
     }
 
     for name in &cfg.get(cur).unwrap().i_dom.clone() {
-        dfs_rename(alloc_var, name, cfg, names, stk, rep);
+        dfs_write_phi(alloc_var, name, cfg, names, stk, rep);
     }
     stk.truncate(cur_stk_len);
+}
+
+fn rename(cfg: &mut HashMap<String, BasicBlock>, rep: &HashMap<String, String>) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (_, bb) in cfg.iter_mut() {
+            for ir in &mut bb.ir {
+                match ir {
+                    IRNode::Binary(_, _, _, lhs, rhs) => {
+                        if let Some(new_val) = rep.get(lhs) {
+                            *lhs = new_val.clone();
+                            changed = true;
+                        }
+                        if let Some(new_val) = rep.get(rhs) {
+                            *rhs = new_val.clone();
+                            changed = true;
+                        }
+                    }
+                    IRNode::BrCond(cond, _, _) => {
+                        if let Some(new_val) = rep.get(cond) {
+                            *cond = new_val.clone();
+                            changed = true;
+                        }
+                    }
+                    IRNode::Ret(_, Some(val)) => {
+                        if let Some(new_val) = rep.get(val) {
+                            *val = new_val.clone();
+                            changed = true;
+                        }
+                    }
+                    IRNode::Load(_, _, ptr) => {
+                        if let Some(new_val) = rep.get(ptr) {
+                            *ptr = new_val.clone();
+                            changed = true;
+                        }
+                    }
+                    IRNode::Store(_, val, ptr) => {
+                        if let Some(new_val) = rep.get(val) {
+                            *val = new_val.clone();
+                            changed = true;
+                        }
+                        if let Some(new_val) = rep.get(ptr) {
+                            *ptr = new_val.clone();
+                            changed = true;
+                        }
+                    }
+                    IRNode::GetElementPtr(_, _, ptr, indexes) => {
+                        if let Some(new_val) = rep.get(ptr) {
+                            *ptr = new_val.clone();
+                            changed = true;
+                        }
+                        for (_, idx) in indexes {
+                            if let Some(new_val) = rep.get(idx) {
+                                *idx = new_val.clone();
+                                changed = true;
+                            }
+                        }
+                    }
+                    IRNode::ICMP(_, cond, _, op1, op2) => {
+                        if let Some(new_val) = rep.get(cond) {
+                            *cond = new_val.clone();
+                            changed = true;
+                        }
+                        if let Some(new_val) = rep.get(op1) {
+                            *op1 = new_val.clone();
+                            changed = true;
+                        }
+                        if let Some(new_val) = rep.get(op2) {
+                            *op2 = new_val.clone();
+                            changed = true;
+                        }
+                    }
+                    IRNode::Call(_, _, _, args) => {
+                        for (_, arg) in args {
+                            if let Some(new_val) = rep.get(arg) {
+                                *arg = new_val.clone();
+                                changed = true;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            for phi in &mut bb.phi {
+                let (_, inst) = phi;
+                if let IRNode::Phi(_, _, args) = inst {
+                    for (val, _) in args {
+                        if let Some(new_val) = rep.get(val) {
+                            *val = new_val.clone();
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn supply_phi(cfg: &mut HashMap<String, BasicBlock>) {
+    for (_, bb) in &mut *cfg {
+        let preds = bb.pred.clone();
+        for (_, ir_node) in &mut bb.phi {
+            if let IRNode::Phi(_, ty, args) = ir_node {
+                let old_args = args.iter().map(
+                    |(_, label)| label.clone()
+                ).collect::<HashSet<_>>();
+                args.extend(
+                    preds.iter().filter(
+                        |pred| !old_args.contains(*pred)
+                    ).map(
+                        |pred| {
+                            match ty {
+                                IRType::PTR(_)=> {
+                                    (String::from("null"), pred.clone())
+                                }
+                                _=>{
+                                    (String::from("0"), pred.clone())
+                                }
+                            }
+                        }
+                    )
+                );
+            } else {
+                unreachable!()
+            }
+        }
+    }
 }
 

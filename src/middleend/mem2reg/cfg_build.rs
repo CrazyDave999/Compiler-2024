@@ -9,7 +9,7 @@ pub struct BasicBlock {
     pub phi: HashMap<String, IRNode>, // var name -> phi inst
     pub dom: HashSet<String>,
     pub i_dom: Vec<String>, // 被自己直接支配的节点
-    pub pred: Vec<String>,
+    pub pred: HashSet<String>,
     pub df: Vec<String>,
     pub allocate: Vec<(String, IRType)>,
     pub store: HashSet<String>,
@@ -30,7 +30,7 @@ impl BasicBlock {
             phi: HashMap::new(),
             dom: HashSet::new(),
             i_dom: Vec::new(),
-            pred: Vec::new(),
+            pred: HashSet::new(),
             df: Vec::new(),
             allocate: ir.iter().filter_map(|x| {
                 match x {
@@ -86,7 +86,7 @@ pub fn build_cfg(mut ir: Vec<IRNode>) -> (HashMap<String, BasicBlock>, Vec<Strin
     for name in &names {
         let ch = cfg.get(name).cloned().unwrap().ch;
         for node in ch {
-            cfg.get_mut(&node).unwrap().pred.push(name.clone());
+            cfg.get_mut(&node).unwrap().pred.insert(name.clone());
         }
     }
     (cfg, names)

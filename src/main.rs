@@ -120,11 +120,11 @@ fn emit_llvm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
 
-                    let mut file = File::create("test.ll")?;
+                    let mut file = File::create("origin.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
 
                     let opt_nodes = mem2reg::pass(ir_nodes.clone());
-                    file = File::create("mem2reg.ll")?;
+                    file = File::create("test.ll")?;
                     ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
 
                     Ok(())
