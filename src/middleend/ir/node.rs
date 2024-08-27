@@ -22,6 +22,15 @@ pub enum IRNode {
     Label(String),
 }
 
+impl IRNode{
+    pub fn is_terminator(&self) -> bool {
+        match self {
+            IRNode::Br(_) | IRNode::BrCond(_, _, _)  => true,
+            _ => false
+        }
+    }
+}
+
 impl Display for IRNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

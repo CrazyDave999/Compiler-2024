@@ -13,6 +13,7 @@ use frontend::semantic;
 
 pub mod middleend;
 use middleend::ir;
+use middleend::mem2reg;
 pub mod backend;
 use backend::asm;
 
@@ -118,8 +119,14 @@ fn emit_llvm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
+
                     let mut file = File::create("test.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+
+                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
+                    file = File::create("mem2reg.ll")?;
+                    ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+
                     Ok(())
                 }
                 Err((msg, span)) => {
@@ -148,8 +155,11 @@ fn emit_llvm_oj() -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
+
+                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
+
                     let mut stdout = io::stdout();
-                    ir::print_ir(&ir_nodes, &mut stdout).expect("FUCK YOU PRINT_IR!");
+                    ir::print_ir(&opt_nodes, &mut stdout).expect("FUCK YOU PRINT_IR!");
                 }
                 Err(e) => fail(e.0)
             }
