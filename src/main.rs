@@ -15,7 +15,7 @@ pub mod middleend;
 use middleend::ir;
 use middleend::mem2reg;
 pub mod backend;
-use backend::asm;
+use backend::codegen;
 
 
 fn fail(s: &str) {
@@ -178,19 +178,15 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
 
-                    let mut file = File::create("origin.ll")?;
+                    let mut file = File::create("test.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
 
-                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
-                    file = File::create("test.ll")?;
-                    ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
-
-                    match asm::build_asm(&ir_nodes) {
+                    match codegen::build_asm(&ir_nodes) {
                         Ok(asm_nodes) => {
                             file = File::create("test.s")?;
                             let builtin = fs::read_to_string("builtin1.s").unwrap();
                             write!(file, "{}", builtin).unwrap();
-                            asm::print_asm(&asm_nodes, &mut file).expect("FUCK YOU PRINT_ASM!");
+                            codegen::print_asm(&asm_nodes, &mut file).expect("FUCK YOU PRINT_ASM!");
                             Ok(())
                         }
                         Err(msg) => {
@@ -223,11 +219,11 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    match asm::build_asm(&ir_nodes) {
+                    match codegen::build_asm(&ir_nodes) {
                         Ok(asm_nodes) => {
                             let builtin = fs::read_to_string("builtin1.s").unwrap();
                             write!(io::stdout(), "{}", builtin).unwrap();
-                            asm::print_asm(&asm_nodes, &mut io::stdout()).expect("FUCK YOU PRINT_ASM!");
+                            codegen::print_asm(&asm_nodes, &mut io::stdout()).expect("FUCK YOU PRINT_ASM!");
                         }
                         Err(_) => {}
                     }

@@ -1,4 +1,4 @@
-pub mod asm;
-
+pub mod codegen;
+mod regalloc;
 
 use super::ir;

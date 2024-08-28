@@ -704,7 +704,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let res_name = ctx.generate();
             match *op {
                 "++" | "--" => {
-                    ctx.func_defs.push(IRNode::Binary(
+                    ctx.insert_statement(IRNode::Binary(
                         res_name.clone(),
                         match *op {
                             "++" => "add",
@@ -715,14 +715,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         rhs_ir_name,
                         String::from("1"),
                     ));
-                    ctx.func_defs.push(IRNode::Store(
+                    ctx.insert_statement(IRNode::Store(
                         res_ty.clone(),
                         res_name.clone(),
                         rhs_info.left_ir_name.clone(),
                     ));
                 }
                 "!" => {
-                    ctx.func_defs.push(IRNode::Binary(
+                    ctx.insert_statement(IRNode::Binary(
                         res_name.clone(),
                         "xor".to_string(),
                         res_ty.clone(),
@@ -731,7 +731,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ));
                 }
                 "-" => {
-                    ctx.func_defs.push(IRNode::Binary(
+                    ctx.insert_statement(IRNode::Binary(
                         res_name.clone(),
                         "sub".to_string(),
                         res_ty.clone(),
@@ -740,7 +740,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ));
                 }
                 "~" => {
-                    ctx.func_defs.push(IRNode::Binary(
+                    ctx.insert_statement(IRNode::Binary(
                         res_name.clone(),
                         "xor".to_string(),
                         res_ty.clone(),

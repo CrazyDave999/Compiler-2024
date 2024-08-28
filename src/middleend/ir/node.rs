@@ -5,6 +5,7 @@ pub enum IRNode {
     Class(String, Vec<IRType>), // name, fields
     Global(String, IRType, String), // name, ty, val
     Str(String, IRType, String, String), // name, ty, val, original
+
     FuncBegin(IRType, String, Vec<(IRType, String)>), // ret_ty, name, args
     FuncEnd,
     Binary(String, String, IRType, String, String), // res, op, ty, lhs, rhs
@@ -20,7 +21,7 @@ pub enum IRNode {
     Phi(String, IRType, Vec<(String, String)>), // res, ty, vars and labels
     Select(String, String, IRType, String, String), // res, cond, ty, val1, val2
     Label(String),
-    Move( String, String), // rd, rs
+    Move(String, String), // rd, rs
 }
 
 impl IRNode {
@@ -135,7 +136,7 @@ impl Display for IRNode {
             IRNode::Label(label) => {
                 write!(f, "{}:\n", label)
             }
-            IRNode::Move( rd, rs) => {
+            IRNode::Move(rd, rs) => {
                 write!(f, "; ### Move {} <- {} ###\n", rd, rs)
             }
         }
