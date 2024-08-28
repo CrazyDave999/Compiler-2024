@@ -81,7 +81,7 @@ fn dfs_write_phi(alloc_var: &String, cur: &String, cfg: &mut HashMap<String, Bas
     }
 
 
-    for name in &cfg.get(cur).unwrap().ch.clone() {
+    for name in &cfg.get(cur).unwrap().succ.clone() {
         if let Some(IRNode::Phi(_, _, args)) = cfg.get_mut(name).unwrap().phi.get_mut(alloc_var) {
             if let Some(top) = stk.last() {
                 args.push((top.clone(), cur.clone()));

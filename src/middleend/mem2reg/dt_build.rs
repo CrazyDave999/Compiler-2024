@@ -16,7 +16,7 @@ fn bfs_calc_dom(cfg: &mut HashMap<String, BasicBlock>, names: &Vec<String>) {
         while !queue.is_empty() {
             let name = &queue.pop_front().unwrap();
             visited.insert(name.clone());
-            queue.extend(cfg[name].ch.iter().cloned().filter(|x| !visited.contains(x)));
+            queue.extend(cfg[name].succ.iter().cloned().filter(|x| !visited.contains(x)));
             let preds = &cfg[name].pred;
             let mut new_dom: HashSet<String> = names.iter().cloned().collect();
 

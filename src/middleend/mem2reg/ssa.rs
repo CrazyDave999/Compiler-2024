@@ -6,8 +6,8 @@ use super::cfg_build::BasicBlock;
 fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) {
     let mut critical_edges = Vec::new();
     for (label, bb) in &*cfg {
-        if bb.ch.len() > 1 {
-            for node in &bb.ch {
+        if bb.succ.len() > 1 {
+            for node in &bb.succ {
                 if cfg.get(node).unwrap().pred.len() > 1 {
                     critical_edges.push((label.clone(), node.clone()));
                 }
@@ -24,8 +24,8 @@ fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) 
     for (from, to) in &critical_edges {
         // modify from_bb
         let new_label = generate_bb();
-        cfg.get_mut(from).unwrap().ch.remove(to);
-        cfg.get_mut(from).unwrap().ch.insert(new_label.clone());
+        cfg.get_mut(from).unwrap().succ.remove(to);
+        cfg.get_mut(from).unwrap().succ.insert(new_label.clone());
 
         match cfg.get_mut(from).unwrap().ir.last_mut().unwrap() {
             IRNode::BrCond(_, label1, label2) => {

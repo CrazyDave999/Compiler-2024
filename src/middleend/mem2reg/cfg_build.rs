@@ -4,7 +4,7 @@ use super::IRNode;
 
 #[derive(Clone)]
 pub struct BasicBlock {
-    pub ch: HashSet<String>,
+    pub succ: HashSet<String>,
     pub ir: Vec<IRNode>,
     pub phi: HashMap<String, IRNode>, // var name -> phi inst
     pub dom: HashSet<String>,
@@ -18,7 +18,7 @@ pub struct BasicBlock {
 impl BasicBlock {
     pub fn from(ir: Vec<IRNode>) -> Self {
         BasicBlock {
-            ch: match ir.last().unwrap() {
+            succ: match ir.last().unwrap() {
                 IRNode::Br(label) => {
                     let mut ch = HashSet::new();
                     ch.insert(label.clone());
@@ -91,7 +91,7 @@ pub fn build_cfg(mut ir: Vec<IRNode>) -> (HashMap<String, BasicBlock>, Vec<Strin
         cfg.insert(name, BasicBlock::from(ir));
     }
     for name in &names {
-        let ch = cfg.get(name).cloned().unwrap().ch;
+        let ch = cfg.get(name).cloned().unwrap().succ;
         for node in ch {
             cfg.get_mut(&node).unwrap().pred.insert(name.clone());
         }

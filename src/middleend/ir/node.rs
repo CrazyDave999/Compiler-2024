@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use super::IRType;
 #[derive(Clone)]
@@ -29,6 +30,103 @@ impl IRNode {
         match self {
             IRNode::Br(_) | IRNode::BrCond(_, _, _) => true,
             _ => false
+        }
+    }
+    pub fn get_use(&self) -> HashSet<String> {
+        match self {
+            IRNode::Binary(_, _, _, lhs, rhs) => {
+                let mut set = HashSet::new();
+                set.insert(lhs.clone());
+                set.insert(rhs.clone());
+                set
+            }
+            IRNode::BrCond(cond, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(cond.clone());
+                set
+            }
+            IRNode::Ret(_, Some(val)) => {
+                let mut set = HashSet::new();
+                set.insert(val.clone());
+                set
+            }
+            IRNode::Load(_, _, ptr) => {
+                let mut set = HashSet::new();
+                set.insert(ptr.clone());
+                set
+            }
+            IRNode::Store(_, val, ptr) => {
+                let mut set = HashSet::new();
+                set.insert(val.clone());
+                set.insert(ptr.clone());
+                set
+            }
+            IRNode::GetElementPtr(_, _, ptr, indexes) => {
+                let mut set = HashSet::new();
+                set.insert(ptr.clone());
+                for (_, idx) in indexes {
+                    set.insert(idx.clone());
+                }
+                set
+            }
+            IRNode::ICMP(_, cond, _, op1, op2) => {
+                let mut set = HashSet::new();
+                set.insert(cond.clone());
+                set.insert(op1.clone());
+                set.insert(op2.clone());
+                set
+            }
+            IRNode::Call(_, _, _, args) => {
+                let mut set = HashSet::new();
+                for (_, arg) in args {
+                    set.insert(arg.clone());
+                }
+                set
+            }
+
+            IRNode::Move(_, rs) => {
+                let mut set = HashSet::new();
+                set.insert(rs.clone());
+                set
+            }
+            _ => HashSet::new()
+        }.into_iter().filter(|x| {
+            x.chars().next().unwrap() == '%'
+        }).collect()
+    }
+    pub fn get_def(&self) -> HashSet<String>{
+        match self {
+            IRNode::Binary(res, _, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res.clone());
+                set
+            }
+            IRNode::Load(res, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res.clone());
+                set
+            }
+            IRNode::GetElementPtr(res, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res.clone());
+                set
+            }
+            IRNode::ICMP(res, _, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res.clone());
+                set
+            }
+            IRNode::Call(Some(res), _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res.clone());
+                set
+            }
+            IRNode::Move(rd, _) => {
+                let mut set = HashSet::new();
+                set.insert(rd.clone());
+                set
+            }
+            _ => HashSet::new()
         }
     }
 }
