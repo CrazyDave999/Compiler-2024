@@ -1,14 +1,20 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::Hash;
 use super::IRNode;
 use super::mem2reg;
 
-#[derive(Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct Instruction {
     pub ir_: IRNode,
     pub use_: HashSet<String>,
     pub def_: HashSet<String>,
     pub in_: HashSet<String>,
     pub out_: HashSet<String>,
+}
+impl Hash for Instruction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.ir_.hash(state);
+    }
 }
 impl Instruction {
     pub fn from(ir: &IRNode) -> Self {
@@ -146,11 +152,11 @@ impl ControlFlowGraph {
         }
     }
 
-    pub fn get_inst(&self)->Vec<&Instruction>{
+    pub fn get_inst(&self) -> Vec<Instruction> {
         let mut res = Vec::new();
         for (_, bb) in &self.nodes {
             for inst in &bb.ch {
-                res.push(inst);
+                res.push(inst.clone());
             }
         }
         res

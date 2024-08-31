@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use super::IRType;
-#[derive(Clone)]
+#[derive(Eq, Clone, PartialEq, Hash)]
 pub enum IRNode {
     Class(String, Vec<IRType>), // name, fields
     Global(String, IRType, String), // name, ty, val

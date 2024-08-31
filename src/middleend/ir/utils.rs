@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use super::ast::Type;
 
-#[derive(Clone)]
+#[derive(Clone,Eq, PartialEq, Hash)]
 pub enum IRType {
     PTR(Box<IRType>),
     Var(String, Vec<i32>),
