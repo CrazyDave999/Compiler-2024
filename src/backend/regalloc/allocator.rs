@@ -38,9 +38,9 @@ pub struct Allocator {
 }
 
 impl Allocator {
-    pub fn from(cfg: &HashMap<String, mem2reg::BasicBlock>) -> Self {
+    pub fn from(ir: Vec<IRNode>) -> Self {
         Allocator {
-            cfg: ControlFlowGraph::from(cfg),
+            cfg: ControlFlowGraph::from(ir),
             k: 28,
             phy_regs: [
                 "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
@@ -340,5 +340,9 @@ impl Allocator {
         ).cloned().collect();
         self.colored_nodes.clear();
         self.coalesced_nodes.clear();
+    }
+
+    pub fn get_ir(&self) -> Vec<IRNode> {
+        self.cfg.get_ir()
     }
 }

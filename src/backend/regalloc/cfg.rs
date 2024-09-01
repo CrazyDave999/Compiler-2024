@@ -44,11 +44,24 @@ pub struct BasicBlock {
 }
 
 impl BasicBlock {
-    pub fn from(bb: &mem2reg::BasicBlock) -> Self {
+    pub fn from(ir: Vec<IRNode>) -> Self {
         let mut res = BasicBlock {
-            succ: bb.succ.clone(),
-            pred: bb.pred.clone(),
-            ch: bb.ir.iter().map(|x| Instruction::from(x)).collect(),
+            succ: match ir.last().unwrap() {
+                IRNode::Br(label) => {
+                    let mut ch = HashSet::new();
+                    ch.insert(label.clone());
+                    ch
+                }
+                IRNode::BrCond(_, label1, label2) => {
+                    let mut ch = HashSet::new();
+                    ch.insert(label1.clone());
+                    ch.insert(label2.clone());
+                    ch
+                }
+                _ => HashSet::new(),
+            },
+            pred: HashSet::new(),
+            ch: ir.iter().map(|x| Instruction::from(x)).collect(),
             use_: HashSet::new(),
             def_: HashSet::new(),
             in_: HashSet::new(),
@@ -75,17 +88,44 @@ pub struct ControlFlowGraph {
     exit: String,
 }
 impl ControlFlowGraph {
-    pub fn from(cfg: &HashMap<String, mem2reg::BasicBlock>) -> Self {
-        ControlFlowGraph {
-            nodes: cfg.iter().map(|(k, v)| (k.clone(), BasicBlock::from(v))).collect(),
-            exit: cfg.iter().find_map(|(k, v)| {
-                if v.succ.is_empty() {
-                    Some(k.clone())
-                } else {
-                    None
+    pub fn from(mut ir: Vec<IRNode>) -> Self {
+        let mut res = ControlFlowGraph {
+            nodes: HashMap::new(),
+            exit: String::new(),
+        };
+        let mut is_entry = true;
+        while let Some(pos) = ir.iter().position(
+            |x| x.is_terminator()
+        ) {
+            let segment = ir.split_off(pos + 1).iter().cloned().collect::<VecDeque<_>>();
+            let extracted_segment = std::mem::replace(&mut ir, segment.iter().cloned().collect::<Vec<_>>());
+            let name = if is_entry {
+                is_entry = false;
+                String::from("entry")
+            } else {
+                match extracted_segment.first().unwrap() {
+                    IRNode::Label(name) => name.clone(),
+                    _ => unreachable!()
                 }
-            }).unwrap(),
+            };
+            res.nodes.insert(name.clone(), BasicBlock::from(extracted_segment));
         }
+        if !ir.is_empty() {
+            let name = match ir.first().unwrap() {
+                IRNode::Label(name) => name.clone(),
+                _ => String::from("entry"),
+            };
+            res.nodes.insert(name.clone(), BasicBlock::from(ir));
+        }
+        let names=  res.nodes.keys().cloned().collect::<Vec<_>>();
+        for name in names {
+            let succ = res.nodes[&name].succ.clone();
+            for node in succ {
+                res.nodes.get_mut(&node).unwrap().pred.insert(name.clone());
+            }
+        }
+
+        res
     }
     fn get_use_(&self, name: &String) -> HashSet<String> {
         self.nodes.get(name).unwrap().use_.clone()
@@ -173,7 +213,7 @@ impl ControlFlowGraph {
         res
     }
 
-    pub fn insert_use_def(&mut self, spill_nodes: HashSet<String>) -> HashSet<String>{
+    pub fn insert_use_def(&mut self, spill_nodes: HashSet<String>) -> HashSet<String> {
         let mut spill_temps = HashSet::new();
         for node in spill_nodes {
             let mut spill_cnt = 0;
@@ -200,18 +240,18 @@ impl ControlFlowGraph {
                     }
                     inst.calc_use_def();
                 }
-                for (i, inst) in spill_store.into_iter().rev(){
+                for (i, inst) in spill_store.into_iter().rev() {
                     bb.ch.insert(i + 1, inst);
                 }
 
                 let mut spill_load = Vec::new();
-                for (i, inst) in bb.ch.iter_mut().enumerate(){
-                    if inst.use_.contains(&node){
+                for (i, inst) in bb.ch.iter_mut().enumerate() {
+                    if inst.use_.contains(&node) {
                         let spill_name = format!("%spill.{}.{}", node, spill_cnt);
                         spill_cnt += 1;
                         spill_temps.insert(spill_name.clone());
-                        for use_ in inst.ir_.get_use_mut(){
-                            if use_ == &node{
+                        for use_ in inst.ir_.get_use_mut() {
+                            if use_ == &node {
                                 *use_ = spill_name.clone();
                             }
                         }
@@ -225,11 +265,23 @@ impl ControlFlowGraph {
                     }
                     inst.calc_use_def();
                 }
-                for (i, inst) in spill_load.into_iter().rev(){
+                for (i, inst) in spill_load.into_iter().rev() {
                     bb.ch.insert(i, inst);
                 }
             }
         }
         spill_temps
+    }
+    pub fn get_ir(&self) -> Vec<IRNode> {
+        let mut res = Vec::new();
+        for (name, bb) in &self.nodes {
+            if name != "entry" {
+                res.push(IRNode::Label(name.clone()));
+            }
+            for inst in &bb.ch {
+                res.push(inst.ir_.clone());
+            }
+        }
+        res
     }
 }
