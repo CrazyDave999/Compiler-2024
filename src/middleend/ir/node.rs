@@ -93,6 +93,11 @@ impl IRNode {
                 set.insert(rs);
                 set
             }
+            IRNode::SpillStore(tmp, _)=>{
+                let mut set = HashSet::new();
+                set.insert(tmp);
+                set
+            }
             _ => HashSet::new()
         }.into_iter().filter(|x| {
             x.chars().next().unwrap() == '%'
@@ -154,6 +159,11 @@ impl IRNode {
                 set.insert(rs.clone());
                 set
             }
+            IRNode::SpillStore(tmp, _)=>{
+                let mut set = HashSet::new();
+                set.insert(tmp.clone());
+                set
+            }
             _ => HashSet::new()
         }.into_iter().filter(|x| {
             x.chars().next().unwrap() == '%'
@@ -191,6 +201,11 @@ impl IRNode {
                 set.insert(rd);
                 set
             }
+            IRNode::SpillLoad(tmp, _)=>{
+                let mut set = HashSet::new();
+                set.insert(tmp);
+                set
+            }
             _ => HashSet::new()
         }
     }
@@ -224,6 +239,11 @@ impl IRNode {
             IRNode::Move(rd, _) => {
                 let mut set = HashSet::new();
                 set.insert(rd.clone());
+                set
+            }
+            IRNode::SpillLoad(tmp, _)=>{
+                let mut set = HashSet::new();
+                set.insert(tmp.clone());
                 set
             }
             _ => HashSet::new()

@@ -7,6 +7,4 @@ mod ssa;
 use super::ir::IRNode;
 use super::ir::IRType;
 
-pub use cfg_build::BasicBlock;
-
 pub use mem2reg::pass;

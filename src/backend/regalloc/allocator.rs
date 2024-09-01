@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use crate::middleend::ir::IRNode;
-use super::mem2reg;
 use super::cfg::{ControlFlowGraph, Instruction};
 
 
@@ -344,5 +343,11 @@ impl Allocator {
 
     pub fn get_ir(&self) -> Vec<IRNode> {
         self.cfg.get_ir()
+    }
+    pub fn get_color(&self) -> HashMap<String, String> {
+        self.color.clone()
+    }
+    pub fn get_spill_temps(&self) -> HashSet<String> {
+        self.spill_temps.clone()
     }
 }
