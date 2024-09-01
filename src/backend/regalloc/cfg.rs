@@ -26,6 +26,10 @@ impl Instruction {
             out_: HashSet::new(),
         }
     }
+    pub fn calc_use_def(&mut self) {
+        self.use_ = self.ir_.get_use();
+        self.def_ = self.ir_.get_def();
+    }
 }
 
 #[derive(Clone)]
@@ -41,21 +45,28 @@ pub struct BasicBlock {
 
 impl BasicBlock {
     pub fn from(bb: &mem2reg::BasicBlock) -> Self {
-        let mut bb_use_ = HashSet::new();
-        let mut bb_def_ = HashSet::new();
-        for ir in &bb.ir {
-            bb_use_ = bb_use_.union(&ir.get_use().difference(&bb_def_).cloned().collect()).cloned().collect();
-            bb_def_ = bb_def_.union(&ir.get_def()).cloned().collect();
-        }
-        BasicBlock {
+        let mut res = BasicBlock {
             succ: bb.succ.clone(),
             pred: bb.pred.clone(),
             ch: bb.ir.iter().map(|x| Instruction::from(x)).collect(),
-            use_: bb_use_,
-            def_: bb_def_,
+            use_: HashSet::new(),
+            def_: HashSet::new(),
             in_: HashSet::new(),
             out_: HashSet::new(),
+        };
+        res.calc_use_def();
+        res
+    }
+
+    pub fn calc_use_def(&mut self) {
+        let mut bb_use_ = HashSet::new();
+        let mut bb_def_ = HashSet::new();
+        for inst in &self.ch {
+            bb_use_ = bb_use_.union(&inst.use_.difference(&bb_def_).cloned().collect()).cloned().collect();
+            bb_def_ = bb_def_.union(&inst.def_).cloned().collect();
         }
+        self.use_ = bb_use_;
+        self.def_ = bb_def_;
     }
 }
 
@@ -160,5 +171,65 @@ impl ControlFlowGraph {
             }
         }
         res
+    }
+
+    pub fn insert_use_def(&mut self, spill_nodes: HashSet<String>) -> HashSet<String>{
+        let mut spill_temps = HashSet::new();
+        for node in spill_nodes {
+            let mut spill_cnt = 0;
+            for (_, bb) in self.nodes.iter_mut() {
+                // 对溢出变量，将其use和def都替换成生命周期很短的临时变量
+                let mut spill_store = Vec::new();
+                for (i, inst) in bb.ch.iter_mut().enumerate() {
+                    if inst.def_.contains(&node) {
+                        let spill_name = format!("%spill.{}.{}", node, spill_cnt);
+                        spill_cnt += 1;
+                        spill_temps.insert(spill_name.clone());
+                        for def_ in inst.ir_.get_def_mut() {
+                            if def_ == &node {
+                                *def_ = spill_name.clone();
+                            }
+                        }
+                        spill_store.push((
+                            i,
+                            Instruction::from(&IRNode::SpillStore(
+                                spill_name.clone(),
+                                node.clone(),
+                            ))
+                        ))
+                    }
+                    inst.calc_use_def();
+                }
+                for (i, inst) in spill_store.into_iter().rev(){
+                    bb.ch.insert(i + 1, inst);
+                }
+
+                let mut spill_load = Vec::new();
+                for (i, inst) in bb.ch.iter_mut().enumerate(){
+                    if inst.use_.contains(&node){
+                        let spill_name = format!("%spill.{}.{}", node, spill_cnt);
+                        spill_cnt += 1;
+                        spill_temps.insert(spill_name.clone());
+                        for use_ in inst.ir_.get_use_mut(){
+                            if use_ == &node{
+                                *use_ = spill_name.clone();
+                            }
+                        }
+                        spill_load.push((
+                            i,
+                            Instruction::from(&IRNode::SpillLoad(
+                                node.clone(),
+                                spill_name.clone(),
+                            ))
+                        ))
+                    }
+                    inst.calc_use_def();
+                }
+                for (i, inst) in spill_load.into_iter().rev(){
+                    bb.ch.insert(i, inst);
+                }
+            }
+        }
+        spill_temps
     }
 }

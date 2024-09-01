@@ -22,7 +22,11 @@ pub enum IRNode {
     Phi(String, IRType, Vec<(String, String)>), // res, ty, vars and labels
     Select(String, String, IRType, String, String), // res, cond, ty, val1, val2
     Label(String),
+
+    // internal instructions for SSA implementation and register allocation
     Move(String, String), // rd, rs
+    SpillLoad(String, String), // tmp, spill_var
+    SpillStore(String, String), // tmp, spill_var
 }
 
 impl IRNode {
@@ -31,6 +35,68 @@ impl IRNode {
             IRNode::Br(_) | IRNode::BrCond(_, _, _) => true,
             _ => false
         }
+    }
+    pub fn get_use_mut(&mut self) -> HashSet<&mut String> {
+        match self {
+            IRNode::Binary(_, _, _, lhs, rhs) => {
+                let mut set = HashSet::new();
+                set.insert(lhs);
+                set.insert(rhs);
+                set
+            }
+            IRNode::BrCond(cond, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(cond);
+                set
+            }
+            IRNode::Ret(_, Some(val)) => {
+                let mut set = HashSet::new();
+                set.insert(val);
+                set
+            }
+            IRNode::Load(_, _, ptr) => {
+                let mut set = HashSet::new();
+                set.insert(ptr);
+                set
+            }
+            IRNode::Store(_, val, ptr) => {
+                let mut set = HashSet::new();
+                set.insert(val);
+                set.insert(ptr);
+                set
+            }
+            IRNode::GetElementPtr(_, _, ptr, indexes) => {
+                let mut set = HashSet::new();
+                set.insert(ptr);
+                for (_, idx) in indexes {
+                    set.insert(idx);
+                }
+                set
+            }
+            IRNode::ICMP(_, cond, _, op1, op2) => {
+                let mut set = HashSet::new();
+                set.insert(cond);
+                set.insert(op1);
+                set.insert(op2);
+                set
+            }
+            IRNode::Call(_, _, _, args) => {
+                let mut set = HashSet::new();
+                for (_, arg) in args {
+                    set.insert(arg);
+                }
+                set
+            }
+
+            IRNode::Move(_, rs) => {
+                let mut set = HashSet::new();
+                set.insert(rs);
+                set
+            }
+            _ => HashSet::new()
+        }.into_iter().filter(|x| {
+            x.chars().next().unwrap() == '%'
+        }).collect()
     }
     pub fn get_use(&self) -> HashSet<String> {
         match self {
@@ -83,7 +149,6 @@ impl IRNode {
                 }
                 set
             }
-
             IRNode::Move(_, rs) => {
                 let mut set = HashSet::new();
                 set.insert(rs.clone());
@@ -94,7 +159,42 @@ impl IRNode {
             x.chars().next().unwrap() == '%'
         }).collect()
     }
-    pub fn get_def(&self) -> HashSet<String>{
+    pub fn get_def_mut(&mut self) -> HashSet<&mut String> {
+        match self {
+            IRNode::Binary(res, _, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::Load(res, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::GetElementPtr(res, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::ICMP(res, _, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::Call(Some(res), _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::Move(rd, _) => {
+                let mut set = HashSet::new();
+                set.insert(rd);
+                set
+            }
+            _ => HashSet::new()
+        }
+    }
+    pub fn get_def(&self) -> HashSet<String> {
         match self {
             IRNode::Binary(res, _, _, _, _) => {
                 let mut set = HashSet::new();
@@ -127,7 +227,9 @@ impl IRNode {
                 set
             }
             _ => HashSet::new()
-        }
+        }.into_iter().filter(|x| {
+            x.chars().next().unwrap() == '%'
+        }).collect()
     }
 }
 
@@ -236,6 +338,12 @@ impl Display for IRNode {
             }
             IRNode::Move(rd, rs) => {
                 write!(f, "; ### Move {} <- {} ###\n", rd, rs)
+            }
+            IRNode::SpillLoad(tmp, spill_var) => {
+                write!(f, "; ### Spill Load {} {} ###\n", tmp, spill_var)
+            }
+            IRNode::SpillStore(tmp, spill_var) => {
+                write!(f, "; ### Spill Store {} {} ###\n", tmp, spill_var)
             }
         }
     }

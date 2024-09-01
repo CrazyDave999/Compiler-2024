@@ -8,6 +8,7 @@ pub struct Allocator {
     cfg: ControlFlowGraph,
     k: i32,
     phy_regs: HashSet<String>,
+    spill_temps: HashSet<String>,
 
     // node sets and work lists
     pre_colored: HashSet<String>,
@@ -44,6 +45,7 @@ impl Allocator {
             phy_regs: [
                 "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
             ].into_iter().map(|x| x.to_string()).collect(),
+            spill_temps: HashSet::new(),
             pre_colored: HashSet::new(),
             initial: HashSet::new(),
             simplify_work_list: HashSet::new(),
@@ -293,11 +295,11 @@ impl Allocator {
     }
     fn select_spill(&mut self) {
         // 启发式地寻找一个高度数节点，让它入栈，从而被溢出。
-        // 选择度数最大的节点。
+        // 我们选择度数最大的节点。
         let mut max_deg = 0;
         let mut m = String::new();
         for n in self.spill_work_list.iter() {
-            if self.degree[n] > max_deg {
+            if !self.spilled_nodes.contains(n) && self.degree[n] > max_deg {
                 max_deg = self.degree[n];
                 m = n.clone();
             }
@@ -329,6 +331,14 @@ impl Allocator {
         }
     }
     fn rewrite_program(&mut self) {
-        // 此时spill_nodes中即为实际溢出的节点，为每一个
+        // 此时spill_nodes中即为实际溢出的节点，为每一个实际溢出节点分配一个存储单元
+        let new_temps = self.cfg.insert_use_def(self.spilled_nodes.clone());
+        self.spill_temps.extend(new_temps.clone());
+        self.spilled_nodes.clear();
+        self.initial = self.colored_nodes.union(
+            &self.coalesced_nodes.union(&new_temps).cloned().collect()
+        ).cloned().collect();
+        self.colored_nodes.clear();
+        self.coalesced_nodes.clear();
     }
 }
