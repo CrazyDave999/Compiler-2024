@@ -40,9 +40,9 @@ impl Allocator {
     pub fn from(ir: Vec<IRNode>) -> Self {
         Allocator {
             cfg: ControlFlowGraph::from(ir),
-            k: 28,
+            k: 27,
             phy_regs: [
-                "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
+                "gp", "tp", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
             ].into_iter().map(|x| x.to_string()).collect(),
             spill_temps: HashSet::new(),
             pre_colored: HashSet::new(),
@@ -105,7 +105,7 @@ impl Allocator {
                         self.pre_colored.insert(n.to_string());
                         self.color.insert(n.to_string(), format!("a{}", i));
                     }
-                    for n in &inst.def_ {
+                    for n in inst.def_.iter() {
                         self.pre_colored.insert(n.to_string());
                         self.color.insert(n.to_string(), "a0".to_string());
                     }

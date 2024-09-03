@@ -25,8 +25,8 @@ pub enum IRNode {
 
     // internal instructions for SSA implementation and register allocation
     Move(String, String), // rd, rs
-    SpillLoad(String, String), // tmp, spill_var
-    SpillStore(String, String), // tmp, spill_var
+    SpillLoad(IRType, String, String), // ty, tmp, spill_var
+    SpillStore(IRType, String, String), // ty, tmp, spill_var
 }
 
 impl IRNode {
@@ -93,7 +93,7 @@ impl IRNode {
                 set.insert(rs);
                 set
             }
-            IRNode::SpillStore(tmp, _)=>{
+            IRNode::SpillStore(_, tmp, _) => {
                 let mut set = HashSet::new();
                 set.insert(tmp);
                 set
@@ -159,7 +159,7 @@ impl IRNode {
                 set.insert(rs.clone());
                 set
             }
-            IRNode::SpillStore(tmp, _)=>{
+            IRNode::SpillStore(_, tmp, _) => {
                 let mut set = HashSet::new();
                 set.insert(tmp.clone());
                 set
@@ -201,7 +201,7 @@ impl IRNode {
                 set.insert(rd);
                 set
             }
-            IRNode::SpillLoad(tmp, _)=>{
+            IRNode::SpillLoad(_, tmp, _) => {
                 let mut set = HashSet::new();
                 set.insert(tmp);
                 set
@@ -241,7 +241,7 @@ impl IRNode {
                 set.insert(rd.clone());
                 set
             }
-            IRNode::SpillLoad(tmp, _)=>{
+            IRNode::SpillLoad(_, tmp, _) => {
                 let mut set = HashSet::new();
                 set.insert(tmp.clone());
                 set
@@ -359,10 +359,10 @@ impl Display for IRNode {
             IRNode::Move(rd, rs) => {
                 write!(f, "; ### Move {} <- {} ###\n", rd, rs)
             }
-            IRNode::SpillLoad(tmp, spill_var) => {
+            IRNode::SpillLoad(_, tmp, spill_var) => {
                 write!(f, "; ### Spill Load {} {} ###\n", tmp, spill_var)
             }
-            IRNode::SpillStore(tmp, spill_var) => {
+            IRNode::SpillStore(_, tmp, spill_var) => {
                 write!(f, "; ### Spill Store {} {} ###\n", tmp, spill_var)
             }
         }

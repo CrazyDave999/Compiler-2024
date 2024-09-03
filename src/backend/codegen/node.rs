@@ -9,6 +9,7 @@ pub enum ASMNode {
     Branch(String, String, String, String), // beq/bne rs1, rs2, label
     Arith(String, String, String, String), // op rd rs1 rs2
     ArithI(String, String, String, String), // op rd rs1 imm
+    Move(String, String), // mv rd rs
     Label(String),
     Call(String), // call symbol
     Segment(String),
@@ -57,6 +58,9 @@ impl Display for ASMNode {
             }
             ASMNode::ArithI(op, rd, rs1, imm) => {
                 write!(f, "{} {}, {}, {}\n", op, rd, rs1, imm)
+            }
+            ASMNode::Move(rd, rs) => {
+                write!(f, "mv {}, {}\n", rd, rs)
             }
             ASMNode::Label(label) => {
                 write!(f, "{}:\n", label)
