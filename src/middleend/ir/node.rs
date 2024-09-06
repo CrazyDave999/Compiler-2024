@@ -24,9 +24,11 @@ pub enum IRNode {
     Label(String),
 
     // internal instructions for SSA implementation and register allocation
-    Move(String, String), // rd, rs
+    Move(IRType, String, String), // ty, rd, rs
     SpillLoad(IRType, String, String), // ty, tmp, spill_var
     SpillStore(IRType, String, String), // ty, tmp, spill_var
+    ArgLoad(IRType, String, i32), // ty, rd, offset
+    ArgStore(IRType, String, i32), // ty, rs, offset
 }
 
 impl IRNode {
@@ -47,11 +49,6 @@ impl IRNode {
             IRNode::BrCond(cond, _, _) => {
                 let mut set = HashSet::new();
                 set.insert(cond);
-                set
-            }
-            IRNode::Ret(_, Some(val)) => {
-                let mut set = HashSet::new();
-                set.insert(val);
                 set
             }
             IRNode::Load(_, _, ptr) => {
@@ -80,15 +77,7 @@ impl IRNode {
                 set.insert(op2);
                 set
             }
-            IRNode::Call(_, _, _, args) => {
-                let mut set = HashSet::new();
-                for (_, arg) in args {
-                    set.insert(arg);
-                }
-                set
-            }
-
-            IRNode::Move(_, rs) => {
+            IRNode::Move(_, _, rs) => {
                 let mut set = HashSet::new();
                 set.insert(rs);
                 set
@@ -96,6 +85,11 @@ impl IRNode {
             IRNode::SpillStore(_, tmp, _) => {
                 let mut set = HashSet::new();
                 set.insert(tmp);
+                set
+            }
+            IRNode::ArgStore(_, rs, _) => {
+                let mut set = HashSet::new();
+                set.insert(rs);
                 set
             }
             _ => HashSet::new()
@@ -114,11 +108,6 @@ impl IRNode {
             IRNode::BrCond(cond, _, _) => {
                 let mut set = HashSet::new();
                 set.insert(cond.clone());
-                set
-            }
-            IRNode::Ret(_, Some(val)) => {
-                let mut set = HashSet::new();
-                set.insert(val.clone());
                 set
             }
             IRNode::Load(_, _, ptr) => {
@@ -147,14 +136,7 @@ impl IRNode {
                 set.insert(op2.clone());
                 set
             }
-            IRNode::Call(_, _, _, args) => {
-                let mut set = HashSet::new();
-                for (_, arg) in args {
-                    set.insert(arg.clone());
-                }
-                set
-            }
-            IRNode::Move(_, rs) => {
+            IRNode::Move(_, _, rs) => {
                 let mut set = HashSet::new();
                 set.insert(rs.clone());
                 set
@@ -162,6 +144,11 @@ impl IRNode {
             IRNode::SpillStore(_, tmp, _) => {
                 let mut set = HashSet::new();
                 set.insert(tmp.clone());
+                set
+            }
+            IRNode::ArgStore(_, rs, _) => {
+                let mut set = HashSet::new();
+                set.insert(rs.clone());
                 set
             }
             _ => HashSet::new()
@@ -191,12 +178,7 @@ impl IRNode {
                 set.insert(res);
                 set
             }
-            IRNode::Call(Some(res), _, _, _) => {
-                let mut set = HashSet::new();
-                set.insert(res);
-                set
-            }
-            IRNode::Move(rd, _) => {
+            IRNode::Move(_, rd, _) => {
                 let mut set = HashSet::new();
                 set.insert(rd);
                 set
@@ -204,6 +186,11 @@ impl IRNode {
             IRNode::SpillLoad(_, tmp, _) => {
                 let mut set = HashSet::new();
                 set.insert(tmp);
+                set
+            }
+            IRNode::ArgLoad(_, rd, _) => {
+                let mut set = HashSet::new();
+                set.insert(rd);
                 set
             }
             _ => HashSet::new()
@@ -231,12 +218,7 @@ impl IRNode {
                 set.insert(res.clone());
                 set
             }
-            IRNode::Call(Some(res), _, _, _) => {
-                let mut set = HashSet::new();
-                set.insert(res.clone());
-                set
-            }
-            IRNode::Move(rd, _) => {
+            IRNode::Move(_, rd, _) => {
                 let mut set = HashSet::new();
                 set.insert(rd.clone());
                 set
@@ -246,10 +228,63 @@ impl IRNode {
                 set.insert(tmp.clone());
                 set
             }
+            IRNode::ArgLoad(_, rd, _) => {
+                let mut set = HashSet::new();
+                set.insert(rd.clone());
+                set
+            }
             _ => HashSet::new()
         }.into_iter().filter(|x| {
             x.chars().next().unwrap() == '%'
         }).collect()
+    }
+    pub fn get_ir_type(&self, name: &String) -> IRType {
+        match self {
+            IRNode::Binary(_, _, ty, _, _) => ty.clone(),
+            IRNode::BrCond(_, _, _) => IRType::i1(),
+            IRNode::Ret(ty, _) => ty.clone(),
+            IRNode::Load(_, ty, _) => ty.clone(),
+            IRNode::Store(ty, _, _) => ty.clone(),
+            IRNode::GetElementPtr(res, ty, ptr, indexes) => {
+                if res == name {
+                    ty.clone()
+                } else if ptr == name {
+                    IRType::PTR(Box::new(IRType::void()))
+                } else {
+                    for (ty, idx) in indexes {
+                        if idx == name {
+                            return ty.clone();
+                        }
+                    }
+                    unreachable!()
+                }
+            }
+            IRNode::ICMP(res, cond, ty, op1, op2) => {
+                if res == name || op1 == name || op2 == name {
+                    ty.clone()
+                } else if cond == name {
+                    IRType::i1()
+                } else {
+                    unreachable!()
+                }
+            }
+            IRNode::Call(res, res_ty, _, args) => {
+                for (ty, arg) in args {
+                    if arg == name {
+                        return ty.clone();
+                    }
+                }
+                if let Some(res) = res {
+                    if res == name {
+                        return res_ty.clone();
+                    }
+                    unreachable!()
+                }
+                unreachable!()
+            }
+            IRNode::Move(ty, _, _) => ty.clone(),
+            _ => unreachable!()
+        }
     }
 }
 
@@ -356,7 +391,7 @@ impl Display for IRNode {
             IRNode::Label(label) => {
                 write!(f, "{}:\n", label)
             }
-            IRNode::Move(rd, rs) => {
+            IRNode::Move(_, rd, rs) => {
                 write!(f, "; ### Move {} <- {} ###\n", rd, rs)
             }
             IRNode::SpillLoad(_, tmp, spill_var) => {
@@ -364,6 +399,12 @@ impl Display for IRNode {
             }
             IRNode::SpillStore(_, tmp, spill_var) => {
                 write!(f, "; ### Spill Store {} {} ###\n", tmp, spill_var)
+            }
+            IRNode::ArgLoad(_, rd, _) => {
+                write!(f, "; ### Arg Load {} ###\n", rd)
+            }
+            IRNode::ArgStore(_, rs, _) => {
+                write!(f, "; ### Arg Store {} ###\n", rs)
             }
         }
     }

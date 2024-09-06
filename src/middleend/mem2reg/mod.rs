@@ -8,3 +8,4 @@ use super::ir::IRNode;
 use super::ir::IRType;
 
 pub use mem2reg::pass;
+use cfg_build::BasicBlock;

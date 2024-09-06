@@ -1,5 +1,4 @@
 pub mod codegen;
-mod regalloc;
+pub mod regalloc;
 
 use super::ir;
-use super::mem2reg;

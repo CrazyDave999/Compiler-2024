@@ -7,7 +7,13 @@ pub struct Allocator {
     cfg: ControlFlowGraph,
     k: i32,
     phy_regs: HashSet<String>,
+    caller_saved_regs: HashSet<String>,
+    callee_saved_regs: HashSet<String>,
     spill_temps: HashSet<String>,
+
+    phy_colors: HashSet<String>,
+    caller_saved_colors: HashSet<String>,
+    callee_saved_colors: HashSet<String>,
 
     // node sets and work lists
     pre_colored: HashSet<String>,
@@ -38,12 +44,28 @@ pub struct Allocator {
 
 impl Allocator {
     pub fn from(ir: Vec<IRNode>) -> Self {
-        Allocator {
-            cfg: ControlFlowGraph::from(ir),
+        let mut res = Allocator {
+            cfg: ControlFlowGraph::from(ir.clone()),
             k: 27,
             phy_regs: [
-                "gp", "tp", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
+                "%a0", "%a1", "%a2", "%a3", "%a4", "%a5", "%a6", "%a7", "%t0", "%t1", "%t2", "%t3", "%t4", "%t5", "%t6", "%s0", "%s1", "%s2", "%s3", "%s4", "%s5", "%s6", "%s7", "%s8", "%s9", "%s10", "%s11"
             ].into_iter().map(|x| x.to_string()).collect(),
+            caller_saved_regs: [
+                "%a0", "%a1", "%a2", "%a3", "%a4", "%a5", "%a6", "%a7", "%t0", "%t1", "%t2", "%t3", "%t4", "%t5", "%t6"
+            ].into_iter().map(|x| x.to_string()).collect(),
+            callee_saved_regs: [
+                "%s0", "%s1", "%s2", "%s3", "%s4", "%s5", "%s6", "%s7", "%s8", "%s9", "%s10", "%s11"
+            ].into_iter().map(|x| x.to_string()).collect(),
+            phy_colors: [
+                "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11"
+            ].into_iter().map(|x| x.to_string()).collect(),
+            caller_saved_colors: [
+                "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "t0", "t1", "t2", "t3", "t4", "t5", "t6"
+            ].into_iter().map(|x| x.to_string()).collect(),
+            callee_saved_colors: [
+                "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11"
+            ].into_iter().map(|x| x.to_string()).collect(),
+
             spill_temps: HashSet::new(),
             pre_colored: HashSet::new(),
             initial: HashSet::new(),
@@ -65,7 +87,29 @@ impl Allocator {
             move_list: HashMap::new(),
             alias: HashMap::new(),
             color: HashMap::new(),
+        };
+        res.pre_colored = res.phy_regs.clone();
+        for reg in res.pre_colored.iter() {
+            res.degree.insert(reg.to_string(), i32::MAX);
+            res.color.insert(reg.to_string(), reg.chars().skip(1).collect());
         }
+        // 预着色节点两两冲突
+        // let pre_nodes = res.pre_colored.clone();
+        // for i in 0..pre_nodes.len() {
+        //     for j in i+1..pre_nodes.len() {
+        //         res.add_edge(&pre_nodes.iter().nth(i).unwrap(), &pre_nodes.iter().nth(j).unwrap());
+        //     }
+        // }
+        for inst in ir.iter() {
+            res.initial.extend(inst.get_use().clone());
+            res.initial.extend(inst.get_def().clone());
+        }
+        res.initial = res.initial.difference(&res.pre_colored).cloned().collect();
+
+        for reg in res.initial.iter(){
+            res.degree.insert(reg.to_string(), 0);
+        }
+        res
     }
     pub fn main(&mut self) {
         self.live_analysis();
@@ -92,28 +136,28 @@ impl Allocator {
         self.cfg.live_analysis();
     }
     fn build(&mut self) {
-        for inst in self.cfg.get_inst() {
-            match &inst.ir_ {
-                IRNode::Move(_, _) => {
-                    for n in inst.use_.union(&inst.def_) {
-                        self.move_list.entry(n.to_string()).or_insert(HashSet::new()).insert(inst.clone());
+        for (_, bb) in self.cfg.nodes.clone().iter() {
+            let mut live = bb.out_.clone();
+            for inst in bb.ch.iter().rev() {
+                match &inst.ir_ {
+                    IRNode::Move(_, _, rs) => {
+                        if rs.chars().next().unwrap() == '%' {
+                            live = live.difference(&inst.use_).cloned().collect();
+                            for n in inst.use_.union(&inst.def_) {
+                                self.move_list.entry(n.to_string()).or_insert(HashSet::new()).insert(inst.clone());
+                            }
+                            self.work_list_moves.insert(inst.clone());
+                        }
                     }
-                    self.work_list_moves.insert(inst.clone());
+                    _ => {}
                 }
-                IRNode::Call(_, _, _, _) => {
-                    for (i, n) in inst.use_.iter().enumerate() {
-                        self.pre_colored.insert(n.to_string());
-                        self.color.insert(n.to_string(), format!("a{}", i));
-                    }
-                    for n in inst.def_.iter() {
-                        self.pre_colored.insert(n.to_string());
-                        self.color.insert(n.to_string(), "a0".to_string());
+                live = live.union(&inst.def_).cloned().collect();
+                for d in inst.def_.iter() {
+                    for l in live.iter() {
+                        self.add_edge(l, d);
                     }
                 }
-                _ => {}
-            }
-            for (u, v) in inst.def_.iter().zip(inst.in_.iter()) {
-                self.add_edge(u, v);
+                live = inst.use_.union(&live.difference(&inst.def_).cloned().collect()).cloned().collect();
             }
         }
     }
@@ -146,14 +190,14 @@ impl Allocator {
         self.initial.clear();
     }
     fn adjacent(&self, n: &str) -> HashSet<String> {
-        self.adj_list.get(n).unwrap().clone().difference(
+        self.adj_list.get(n).unwrap_or(&HashSet::new()).clone().difference(
             &self.select_stack.iter().cloned().collect::<HashSet<_>>().union(
                 &self.coalesced_nodes
             ).cloned().collect()
         ).cloned().collect()
     }
     fn node_moves(&self, n: &str) -> HashSet<Instruction> {
-        self.move_list.get(n).unwrap().clone().intersection(
+        self.move_list.get(n).unwrap_or(&HashSet::new()).clone().intersection(
             &self.active_moves.union(&self.work_list_moves).cloned().collect()
         ).cloned().collect()
     }
@@ -171,7 +215,9 @@ impl Allocator {
     }
     fn decrement_degree(&mut self, m: &str) {
         let d = self.degree[m];
-        *self.degree.get_mut(m).unwrap() = d - 1;
+        if !self.pre_colored.contains(m) {
+            *self.degree.get_mut(m).unwrap() = d - 1;
+        }
         if d == self.k {
             self.enable_moves(
                 self.adjacent(m).union(
@@ -310,7 +356,7 @@ impl Allocator {
     fn assign_colors(&mut self) {
         while !self.select_stack.is_empty() {
             let n = self.select_stack.pop().unwrap();
-            let mut ok_colors = self.phy_regs.clone();
+            let mut ok_colors = self.phy_colors.clone();
             for w in self.adj_list[&n].iter() {
                 let alias_w = self.get_alias(w);
                 if self.colored_nodes.contains(&alias_w) || self.pre_colored.contains(&alias_w) {
@@ -321,7 +367,13 @@ impl Allocator {
                 self.spilled_nodes.insert(n.clone());
             } else {
                 self.colored_nodes.insert(n.clone());
+
+                // 优先分配callee saved寄存器
+                if !ok_colors.is_disjoint(&self.caller_saved_colors) {
+                    ok_colors = ok_colors.intersection(&self.caller_saved_colors).cloned().collect();
+                }
                 let c = ok_colors.iter().next().unwrap().clone();
+
                 self.color.insert(n.clone(), c);
             }
         }

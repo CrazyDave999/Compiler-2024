@@ -17,7 +17,7 @@ use middleend::mem2reg;
 pub mod backend;
 
 use backend::codegen;
-
+use backend::regalloc;
 
 fn fail(s: &str) {
     println!("{}", s);
@@ -179,10 +179,20 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
 
-                    let mut file = File::create("test.ll")?;
+                    let mut file = File::create("origin.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
 
-                    match codegen::build_asm(&ir_nodes) {
+                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
+
+                    let mut file = File::create("mem2reg.ll")?;
+                    ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+
+                    let alloc = regalloc::pass(opt_nodes);
+
+                    let mut file = File::create("regalloc.ll")?;
+                    ir::print_ir(&alloc.ir, &mut file).expect("FUCK YOU PRINT_IR!");
+
+                    match codegen::build_asm(alloc) {
                         Ok(asm_nodes) => {
                             file = File::create("test.s")?;
                             let builtin = fs::read_to_string("builtin1.s").unwrap();
@@ -220,7 +230,9 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    match codegen::build_asm(&ir_nodes) {
+                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
+                    let alloc = regalloc::pass(opt_nodes);
+                    match codegen::build_asm(alloc) {
                         Ok(asm_nodes) => {
                             let builtin = fs::read_to_string("builtin1.s").unwrap();
                             write!(io::stdout(), "{}", builtin).unwrap();

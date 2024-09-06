@@ -5,42 +5,73 @@ use super::AllocResult;
 
 
 pub fn pass(ir: Vec<IRNode>) -> AllocResult {
-    let mut res = AllocResult::new();
+    let mut alloc_res = AllocResult::new();
     let mut func_name = None;
     let mut func_inner = Vec::new();
+
     for node in ir {
         match &node {
             IRNode::FuncBegin(_, name, args) => {
-                let mut color = HashMap::new();
-                for (i, (_, arg)) in args.iter().enumerate() {
-                    color.insert(arg.clone(), format!("a{}", i));
-                    if i == 7 {
-                        break;
+                func_name = Some(name.clone());
+                alloc_res.ir.push(node.clone());
+                // 这里还应该保护所有callee save寄存器，但是现在不知道使用了哪些，所以先不处理
+
+                // 从a0-a7中以及内存中把参数值传递给形参虚拟寄存器
+                for (i, (ty, name)) in args.iter().enumerate() {
+                    if i <= 7 {
+                        func_inner.push(IRNode::Move(ty.clone(), name.clone(), format!("%a{}", i)));
+                    } else {
+                        func_inner.push(IRNode::ArgLoad(ty.clone(), name.clone(), (i as i32 - 8) * 4));
                     }
                 }
-                res.color.insert(name.clone(), Box::new(color));
-                func_name = Some(name.clone());
-                res.ir.push(node);
+
             }
             IRNode::FuncEnd => {
                 let mut alloc = Allocator::from(func_inner.clone());
                 alloc.main();
-                res.ir.extend(alloc.get_ir());
-                res.color.get_mut(&func_name.clone().unwrap()).unwrap().extend(alloc.get_color());
-                res.spill_temps.insert(func_name.clone().unwrap(), Box::new(alloc.get_spill_temps()));
+                alloc_res.ir.extend(alloc.get_ir());
+                alloc_res.color.entry(func_name.clone().unwrap()).or_insert(Box::new(HashMap::new())).extend(alloc.get_color());
+                alloc_res.spill_temps.insert(func_name.clone().unwrap(), Box::new(alloc.get_spill_temps()));
 
                 func_inner.clear();
                 func_name = None;
-                res.ir.push(node);
+                alloc_res.ir.push(node);
             }
             _ => {
                 if func_name.is_some() {
-                    func_inner.push(node);
+                    match &node {
+                        IRNode::Call(res, res_ty, _, args) => {
+                            // 这里还应该保护所有caller save的寄存器
+
+                            for (i, (ty, arg)) in args.iter().enumerate() {
+                                if i <= 7 {
+                                    func_inner.push(IRNode::Move(ty.clone(), format!("%a{}", i), arg.clone()));
+                                } else {
+                                    func_inner.push(IRNode::ArgStore(ty.clone(), arg.clone(), (i as i32 - 8) * 4));
+                                }
+                            }
+                            func_inner.push(node.clone());
+                            if let Some(res) = res {
+                                func_inner.push(IRNode::Move(res_ty.clone(), res.clone(), "%a0".to_string()));
+                            }
+                        }
+                        IRNode::Ret(ty, res) => {
+                            if let Some(res) = res {
+                                func_inner.push(IRNode::Move(ty.clone(), "%a0".to_string(), res.clone()));
+                            }
+                            // 这里还应该恢复所有callee save的寄存器
+
+                            func_inner.push(node.clone());
+                        }
+                        _ => {
+                            func_inner.push(node.clone());
+                        }
+                    }
                 } else {
-                    res.ir.push(node);
+                    alloc_res.ir.push(node);
                 }
             }
         }
     }
-    res
+    alloc_res
 }

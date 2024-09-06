@@ -65,7 +65,8 @@ fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) 
                 _ => unreachable!()
             }
         }
-        names.push(new_label.clone());
+        let l = names.len();
+        names.insert(l - 1, new_label.clone());
     }
 }
 
@@ -76,11 +77,12 @@ pub fn eliminate_phi(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<Stri
         let mut mv_nodes = Vec::new();
         for (_, phi) in &cfg.get(name).unwrap().phi.clone() {
             match phi {
-                IRNode::Phi(res, _, args) => {
+                IRNode::Phi(res, ty, args) => {
                     for (val, label) in args {
                         mv_nodes.push((
                             label.clone(),
                             IRNode::Move(
+                                ty.clone(),
                                 res.clone(),
                                 val.clone(),
                             )
