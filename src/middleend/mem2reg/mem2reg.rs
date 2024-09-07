@@ -8,6 +8,7 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
     let mut res = Vec::new();
     let mut in_func = false;
     let mut func_inner = Vec::new();
+    let mut bb_cnt = 0;
     for node in ir {
         match node {
             IRNode::FuncBegin(_, _, _) => {
@@ -18,7 +19,7 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
                 let (mut cfg, mut names) = build_cfg(func_inner.clone());
                 build_dt(&mut cfg, &names);
                 let allocated_vars = put_phi(&mut cfg, &names);
-                eliminate_phi(&mut cfg, &mut names);
+                eliminate_phi(&mut cfg, &mut names, &mut bb_cnt);
                 res.extend(get_ir(&cfg, &names, &allocated_vars));
 
                 func_inner.clear();
@@ -53,7 +54,7 @@ fn get_ir(cfg: &HashMap<String, BasicBlock>, names: &Vec<String>, allocated_vars
             1
         };
 
-        for ir in &bb.ir[start..bb.ir.len()-1] {
+        for ir in &bb.ir[start..bb.ir.len() - 1] {
             match ir {
                 IRNode::Allocate(_, _) => {
                     continue;

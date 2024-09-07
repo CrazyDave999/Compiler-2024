@@ -3,7 +3,7 @@ use super::IRNode;
 use super::cfg_build::BasicBlock;
 
 // to eliminate critical edges
-fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) {
+fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>, bb_cnt: &mut i32) {
     let mut critical_edges = Vec::new();
     for (label, bb) in &*cfg {
         if bb.succ.len() > 1 {
@@ -14,10 +14,9 @@ fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) 
             }
         }
     }
-    let mut bb_cnt = 0;
     let mut generate_bb = || {
-        let name = format!("CrazyDave..BB{}", bb_cnt);
-        bb_cnt += 1;
+        let name = format!("CrazyDave..BB{}", *bb_cnt);
+        *bb_cnt += 1;
         name
     };
 
@@ -71,8 +70,8 @@ fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) 
 }
 
 // eliminate phi and insert move
-pub fn eliminate_phi(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>) {
-    put_blank_bb(cfg, names);
+pub fn eliminate_phi(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>, bb_cnt: &mut i32) {
+    put_blank_bb(cfg, names, bb_cnt);
     for name in &*names {
         let mut mv_nodes = Vec::new();
         for (_, phi) in &cfg.get(name).unwrap().phi.clone() {
