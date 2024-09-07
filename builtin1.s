@@ -1,18 +1,14 @@
 	.text
 	.globl	print
 	.p2align	1
-	
 print:
 	mv	a1, a0
 	lui	a0, %hi(.L.str)
 	addi	a0, a0, %lo(.L.str)
 	tail	printf
 .Lfunc_end0:
-	
-
 	.globl	println
 	.p2align	1
-	
 println:
 	mv	a1, a0
 	lui	a0, %hi(.L.str.1)
@@ -119,28 +115,19 @@ CrazyDave..AllocArray:
 	addi	sp, sp, 16
 	ret
 .Lfunc_end8:
-	
-
 	.globl	CrazyDave..GetArraySize
 	.p2align	1
-	
 CrazyDave..GetArraySize:
 	lw	a0, -4(a0)
 	ret
 .Lfunc_end9:
-	
-
 	.globl	string.length
 	.p2align	1
-	
 string.length:
 	tail	strlen
 .Lfunc_end10:
-	
-
 	.globl	string.substring
 	.p2align	1
-	
 string.substring:
 	addi	sp, sp, -32
 	sw	ra, 28(sp)
@@ -165,11 +152,8 @@ string.substring:
 	addi	sp, sp, 32
 	ret
 .Lfunc_end11:
-	
-
 	.globl	string.parseInt
 	.p2align	1
-	
 string.parseInt:
 	addi	sp, sp, -16
 	sw	ra, 12(sp)

@@ -95,7 +95,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     store(ty.size(), &val_reg, 0, &color[ptr], &mut asm);
                                 }
                                 '@' => {
-                                    store_global(&val_reg, &"gp".to_string(), &ptr[1..].to_string(), ty, &mut asm);
+                                    store_global(&val_reg, &"tp".to_string(), &ptr[1..].to_string(), ty, &mut asm);
                                 }
                                 _ => unreachable!()
                             }
@@ -217,7 +217,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                         "sltiu".to_string(),
                                         color[res].clone(),
                                         lhs_reg.clone(),
-                                        rhs_reg.clone(),
+                                        "1".to_string(),
                                     ));
                                 }
                                 "ne" => {
@@ -300,11 +300,19 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     addi(&color[rd], &"zero".to_string(), val, &mut asm);
                                 }
                                 Err(_) => {
-                                    if color[rd] != color[rs] {
-                                        asm.push(ASMNode::Move(
-                                            color[rd].clone(),
-                                            color[rs].clone(),
-                                        ));
+                                    match rs.chars().nth(0).unwrap() {
+                                        '%' => {
+                                            if color[rd] != color[rs] {
+                                                asm.push(ASMNode::Move(
+                                                    color[rd].clone(),
+                                                    color[rs].clone(),
+                                                ));
+                                            }
+                                        }
+                                        '@' => {
+                                            get_val(&rs, &color[rd], color, &mut asm);
+                                        }
+                                        _ => unreachable!()
                                     }
                                 }
                             }
@@ -360,7 +368,23 @@ fn get_val(val: &String, tmp_reg: &String, color: &HashMap<String, String>, asm:
                 tmp_reg.clone()
             }
             Err(_) => {
-                color[val].clone()
+                match val.chars().nth(0).unwrap() {
+                    '%' => color[val].clone(),
+                    '@' => {
+                        asm.push(ASMNode::Lui(
+                            tmp_reg.clone(),
+                            format!("%hi({})", &val[1..]),
+                        ));
+                        asm.push(ASMNode::ArithI(
+                            "addi".to_string(),
+                            tmp_reg.clone(),
+                            tmp_reg.clone(),
+                            format!("%lo({})", &val[1..]),
+                        ));
+                        tmp_reg.clone()
+                    }
+                    _ => unreachable!()
+                }
             }
         }
     }

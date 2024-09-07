@@ -108,6 +108,7 @@ impl Allocator {
 
         for reg in res.initial.iter(){
             res.degree.insert(reg.to_string(), 0);
+            res.adj_list.insert(reg.to_string(), HashSet::new());
         }
         res
     }
