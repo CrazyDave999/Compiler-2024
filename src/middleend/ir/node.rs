@@ -29,6 +29,10 @@ pub enum IRNode {
     SpillStore(IRType, String, String), // ty, tmp, spill_var
     ArgLoad(IRType, String, i32), // ty, rd, offset
     ArgStore(IRType, String, i32), // ty, rs, offset
+    CalleeProtect(Vec<String>), // protected args
+    CalleeRecover(Vec<String>), // protected args
+    CallerProtect(String, Vec<String>), // func_name, protected args
+    CallerRecover(String, Vec<String>), // func_name, protected args
 }
 
 impl IRNode {
@@ -405,6 +409,18 @@ impl Display for IRNode {
             }
             IRNode::ArgStore(_, rs, _) => {
                 write!(f, "; ### Arg Store {} ###\n", rs)
+            }
+            IRNode::CalleeProtect(args) => {
+                write!(f, "; ### CalleeProtect {:?} ###\n", args)
+            }
+            IRNode::CalleeRecover(args) => {
+                write!(f, "; ### CalleeRecover {:?} ###\n", args)
+            }
+            IRNode::CallerProtect(name, args) => {
+                write!(f, "; ### CallerProtect {} {:?} ###\n", name, args)
+            }
+            IRNode::CallerRecover(name, args) => {
+                write!(f, "; ### CallerRecover {} {:?} ###\n", name, args)
             }
         }
     }

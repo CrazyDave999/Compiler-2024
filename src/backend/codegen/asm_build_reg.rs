@@ -9,6 +9,8 @@ use super::IRNode;
 // 前面的mem2reg和regalloc应该保证所有普通指令的操作数是数字，被染色的虚拟寄存器，或全局变量
 
 pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
+    let a_num = 2;
+
     let mut asm = Vec::new();
     let mut bss = Vec::new();
     let mut rodata = Vec::new();
@@ -28,31 +30,41 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
 
                 let mut contains_call = false;
                 let mut max_call_arg_spill = 0;
+
                 for j in i + 1.. {
                     match &alloc_res.ir[j] {
                         IRNode::Call(_, _, _, args) => {
                             let mut call_arg_spill = 0;
-                            if args.len() > 8 {
-                                call_arg_spill = (args.len() - 8) as i32 * 4;
+                            if args.len() > a_num {
+                                call_arg_spill = (args.len() - a_num) as i32 * 4;
                             }
                             max_call_arg_spill = max(max_call_arg_spill, call_arg_spill);
                             contains_call = true;
+                        }
+                        IRNode::CalleeProtect(args) => {
+                            alloc_size += args.len() as i32 * 4;
+                        }
+                        IRNode::CallerProtect(_, args) => {
+                            alloc_size += args.len() as i32 * 4;
                         }
                         IRNode::FuncEnd => { break; }
                         _ => {}
                     }
                 }
                 alloc_size += max_call_arg_spill;
+
                 if contains_call {
                     alloc_size += 4;
                 }
                 alloc_size = (alloc_size + 15) / 16 * 16;
+
                 if alloc_size > 0 {
                     addi(&"sp".to_string(), &"sp".to_string(), -alloc_size, &mut asm);
                 }
                 let mut offset = alloc_size;
                 let mut map: HashMap<String, i32> = HashMap::new(); // name, offset
 
+                // initialize map begins
                 if contains_call {
                     offset -= 4;
                     store(4, &"ra".to_string(), offset, &"sp".to_string(), &mut asm);
@@ -64,13 +76,8 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                     map.insert(tmp.clone(), offset);
                 }
 
-                let mut arg_spill = 0;
-                for (j, (_, name)) in args.iter().enumerate() {
-                    if j > 7 {
-                        map.insert(name.clone(), alloc_size + arg_spill);
-                        arg_spill += 4;
-                    }
-                }
+                // initialize map ends
+
                 loop {
                     i += 1;
                     match &alloc_res.ir[i] {
@@ -113,33 +120,32 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                             let first_reg = get_val(&first_ind.1, &"tp".to_string(), &color, &mut asm);
                             asm.push(ASMNode::ArithI(
                                 "slli".to_string(),
-                                first_reg.clone(),
+                                "tp".to_string(),
                                 first_reg.clone(),
                                 "2".to_string(),
                             ));
                             asm.push(ASMNode::Arith(
                                 "add".to_string(),
+                                color[res].clone(),
                                 ptr_reg.clone(),
-                                ptr_reg.clone(),
-                                first_reg.clone(),
+                                "tp".to_string(),
                             ));
                             if indexes.len() > 1 {
                                 let second_ind = &indexes[1];
                                 let second_reg = get_val(&second_ind.1, &"tp".to_string(), &color, &mut asm);
                                 asm.push(ASMNode::ArithI(
                                     "slli".to_string(),
-                                    second_reg.clone(),
+                                    "tp".to_string(),
                                     second_reg.clone(),
                                     "2".to_string(),
                                 ));
                                 asm.push(ASMNode::Arith(
                                     "add".to_string(),
-                                    ptr_reg.clone(),
-                                    ptr_reg.clone(),
-                                    second_reg.clone(),
+                                    color[res].clone(),
+                                    color[res].clone(),
+                                    "tp".to_string(),
                                 ));
                             }
-                            load(4, &color[res], 0, &ptr_reg, &mut asm);
                         }
                         IRNode::Binary(res, op, _, lhs, rhs) => {
                             let lhs_reg = get_val(lhs, &"gp".to_string(), &color, &mut asm);
@@ -173,14 +179,14 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                 "sge" => {
                                     asm.push(ASMNode::Arith(
                                         "slt".to_string(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                         lhs_reg.clone(),
                                         rhs_reg.clone(),
                                     ));
                                     asm.push(ASMNode::ArithI(
                                         "xori".to_string(),
                                         color[res].clone(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                         "1".to_string(),
                                     ));
                                 }
@@ -195,35 +201,35 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                 "sle" => {
                                     asm.push(ASMNode::Arith(
                                         "slt".to_string(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                         rhs_reg.clone(),
                                         lhs_reg.clone(),
                                     ));
                                     asm.push(ASMNode::ArithI(
                                         "xori".to_string(),
                                         color[res].clone(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                         "1".to_string(),
                                     ));
                                 }
                                 "eq" => {
                                     asm.push(ASMNode::Arith(
                                         "xor".to_string(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                         lhs_reg.clone(),
                                         rhs_reg.clone(),
                                     ));
                                     asm.push(ASMNode::ArithI(
                                         "sltiu".to_string(),
                                         color[res].clone(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                         "1".to_string(),
                                     ));
                                 }
                                 "ne" => {
                                     asm.push(ASMNode::Arith(
                                         "xor".to_string(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                         lhs_reg.clone(),
                                         rhs_reg.clone(),
                                     ));
@@ -231,7 +237,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                         "sltu".to_string(),
                                         color[res].clone(),
                                         "zero".to_string(),
-                                        lhs_reg.clone(),
+                                        "gp".to_string(),
                                     ));
                                 }
                                 _ => unreachable!()
@@ -260,22 +266,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                 label.clone(),
                             ));
                         }
-                        IRNode::Call(_, _, name, args) => {
-                            let mut call_arg_spill = 0;
-                            // 参数中，所有的虚拟寄存器已经被分配了物理寄存器，它们占用了a0-a7的前面几个。在前八个参数中，对于立即数，应该将其addi到对应的a0-a7的寄存器
-                            for (j, (ty, arg)) in args.iter().enumerate() {
-                                if j > 7 {
-                                    let arg_reg = get_val(arg, &"gp".to_string(), color, &mut asm);
-                                    store(
-                                        ty.size(),
-                                        &arg_reg,
-                                        call_arg_spill,
-                                        &"sp".to_string(),
-                                        &mut asm,
-                                    );
-                                    call_arg_spill += 4;
-                                }
-                            }
+                        IRNode::Call(_, _, name, _) => {
                             asm.push(ASMNode::Call(name.clone()));
                         }
                         IRNode::Ret(_, _) => {
@@ -283,7 +274,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                 load(
                                     4,
                                     &"ra".to_string(),
-                                    *map.get("#ra").ok_or("Key Not Found")?,
+                                    map["#ra"],
                                     &"sp".to_string(),
                                     &mut asm,
                                 );
@@ -318,20 +309,44 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                             }
                         }
                         IRNode::SpillLoad(ty, tmp, spill_var) => {
-                            let offset = *map.get(spill_var).ok_or("Key Not Found")?;
+                            let offset = map[spill_var];
                             load(ty.size(), &color[tmp], offset, &"sp".to_string(), &mut asm);
                         }
                         IRNode::SpillStore(ty, tmp, spill_var) => {
-                            let offset = *map.get(spill_var).ok_or("Key Not Found")?;
+                            let offset = map[spill_var];
                             let tmp_reg = get_val(tmp, &"gp".to_string(), color, &mut asm);
                             store(ty.size(), &tmp_reg, offset, &"sp".to_string(), &mut asm);
                         }
                         IRNode::ArgLoad(ty, rd, offset) => {
-                            load(ty.size(), &color[rd], *offset, &"sp".to_string(), &mut asm);
+                            load(ty.size(), &color[rd], *offset + alloc_size, &"sp".to_string(), &mut asm);
                         }
                         IRNode::ArgStore(ty, rs, offset) => {
                             let rs_reg = get_val(rs, &"gp".to_string(), color, &mut asm);
                             store(ty.size(), &rs_reg, *offset, &"sp".to_string(), &mut asm);
+                        }
+                        IRNode::CalleeProtect(args) => {
+                            for reg in args {
+                                offset -= 4;
+                                map.insert(reg.clone(), offset);
+                                store(4, reg, offset, &"sp".to_string(), &mut asm);
+                            }
+                        }
+                        IRNode::CalleeRecover(args) => {
+                            for reg in args {
+                                load(4, reg, map[reg], &"sp".to_string(), &mut asm);
+                            }
+                        }
+                        IRNode::CallerProtect(_, args) => {
+                            for reg in args {
+                                offset -= 4;
+                                map.insert(reg.clone(), offset);
+                                store(4, reg, offset, &"sp".to_string(), &mut asm);
+                            }
+                        }
+                        IRNode::CallerRecover(_, args) => {
+                            for reg in args {
+                                load(4, reg, map[reg], &"sp".to_string(), &mut asm);
+                            }
                         }
 
                         _ => {}

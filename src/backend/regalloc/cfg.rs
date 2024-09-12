@@ -1,5 +1,6 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, LinkedList, VecDeque};
 use std::hash::Hash;
+use crate::middleend::ir::IRType;
 use super::IRNode;
 
 #[derive(Eq, PartialEq, Clone)]
@@ -7,8 +8,8 @@ pub struct Instruction {
     pub ir_: IRNode,
     pub use_: HashSet<String>,
     pub def_: HashSet<String>,
-    // pub in_: HashSet<String>,
-    // pub out_: HashSet<String>,
+    pub in_: HashSet<String>,
+    pub out_: HashSet<String>,
 }
 impl Hash for Instruction {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -21,8 +22,8 @@ impl Instruction {
             ir_: ir.clone(),
             use_: ir.get_use(),
             def_: ir.get_def(),
-            // in_: HashSet::new(),
-            // out_: HashSet::new(),
+            in_: HashSet::new(),
+            out_: HashSet::new(),
         }
     }
     pub fn calc_use_def(&mut self) {
@@ -66,7 +67,6 @@ impl BasicBlock {
             in_: HashSet::new(),
             out_: HashSet::new(),
         };
-        res.calc_use_def();
         res
     }
 
@@ -84,7 +84,7 @@ impl BasicBlock {
 
 pub struct ControlFlowGraph {
     pub nodes: HashMap<String, BasicBlock>,
-    names: Vec<String>,
+    pub names: Vec<String>,
     exit: String,
 }
 impl ControlFlowGraph {
@@ -160,6 +160,9 @@ impl ControlFlowGraph {
         self.nodes.get_mut(name).unwrap().out_ = out_;
     }
     pub fn live_analysis(&mut self) {
+        for (_, bb) in self.nodes.iter_mut() {
+            bb.calc_use_def();
+        }
         // 逆BFS顺序遍历，计算各个基本块的in_和out_
         let mut changed = true;
         while changed {
@@ -168,7 +171,11 @@ impl ControlFlowGraph {
             let mut visited = HashSet::new();
             queue.push_back(self.exit.clone());
             while !queue.is_empty() {
+                // let q = queue.iter().cloned().collect::<Vec<_>>();
                 let cur = queue.pop_front().unwrap();
+                if visited.contains(&cur) {
+                    continue;
+                }
                 visited.insert(cur.clone());
                 let use_ = self.get_use_(&cur);
                 let def_ = self.get_def_(&cur);
@@ -184,7 +191,8 @@ impl ControlFlowGraph {
                 let succ = self.get_succ_(&cur);
                 let mut new_out_ = HashSet::new();
                 for node in succ {
-                    new_out_ = new_out_.union(&self.get_in_(&node)).cloned().collect();
+                    new_out_.extend(self.get_in_(&node).iter().cloned());
+                    // new_out_ = new_out_.union(&self.get_in_(&node)).cloned().collect();
                 }
                 if new_out_ != self.get_out_(&cur) {
                     changed = true;
@@ -198,16 +206,6 @@ impl ControlFlowGraph {
             }
         }
     }
-
-    // pub fn get_inst(&self) -> Vec<Instruction> {
-    //     let mut res = Vec::new();
-    //     for (_, bb) in &self.nodes {
-    //         for inst in &bb.ch {
-    //             res.push(inst.clone());
-    //         }
-    //     }
-    //     res
-    // }
 
     pub fn insert_use_def(&mut self, spill_nodes: HashSet<String>) -> HashSet<String> {
         let mut spill_temps = HashSet::new();
@@ -229,7 +227,8 @@ impl ControlFlowGraph {
                         spill_store.push((
                             i,
                             Instruction::from(&IRNode::SpillStore(
-                                inst.ir_.get_ir_type(&node).clone(),
+                                // inst.ir_.get_ir_type(&spill_name).clone(),
+                                IRType::i32(),
                                 spill_name.clone(),
                                 node.clone(),
                             ))
@@ -255,9 +254,10 @@ impl ControlFlowGraph {
                         spill_load.push((
                             i,
                             Instruction::from(&IRNode::SpillLoad(
-                                inst.ir_.get_ir_type(&node).clone(),
-                                node.clone(),
+                                // inst.ir_.get_ir_type(&spill_name).clone(),
+                                IRType::i32(),
                                 spill_name.clone(),
+                                node.clone(),
                             ))
                         ))
                     }
@@ -269,14 +269,5 @@ impl ControlFlowGraph {
             }
         }
         spill_temps
-    }
-    pub fn get_ir(&self) -> Vec<IRNode> {
-        let mut res = Vec::new();
-        for name in &self.names {
-            for inst in &self.nodes[name].ch {
-                res.push(inst.ir_.clone());
-            }
-        }
-        res
     }
 }
