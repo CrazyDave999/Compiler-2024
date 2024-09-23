@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 pest = "2.7.11"
 pest_derive = "2.7.11"
+bit-set = "0.7.0"

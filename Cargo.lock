@@ -3,6 +3,21 @@
 version = 3
 
 [[package]]
+name = "bit-set"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e42c65e29bf06f5ff7b7eb0f70030877e41e60066955d16b999edb83c44e9d2e"
+dependencies = [
+ "bit-vec",
+]
+
+[[package]]
+name = "bit-vec"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2c54ff287cfc0a34f38a6b832ea1bd8e448a330b3e40a50859e6488bee07f22"
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -21,6 +36,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 name = "compiler-2024"
 version = "0.1.0"
 dependencies = [
+ "bit-set",
  "pest",
  "pest_derive",
 ]

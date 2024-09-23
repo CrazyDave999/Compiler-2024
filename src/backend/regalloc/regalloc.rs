@@ -1,11 +1,13 @@
-use std::collections::HashMap;
 use super::IRNode;
 use super::Allocator;
 use super::AllocResult;
 
+// caller save 指令必须在算法开始之前就预留好，因此在这里预留caller save指令，其中的寄存器内容在算法结束后填写
+// 而callee save指令需要知道使用了哪些寄存器，因此在结束后的get_ir中处理
 
 pub fn pass(ir: Vec<IRNode>) -> AllocResult {
-    let a_num: i32 = 2;
+    let a_num: i32 = 8;
+
     let mut alloc_res = AllocResult::new();
     let mut func_name = None;
     let mut func_inner = Vec::new();
@@ -15,7 +17,6 @@ pub fn pass(ir: Vec<IRNode>) -> AllocResult {
             IRNode::FuncBegin(_, name, args) => {
                 func_name = Some(name.clone());
                 alloc_res.ir.push(node.clone());
-                // 这里还应该保护所有callee save寄存器，但是现在不知道使用了哪些，所以先不处理
 
                 // 从a0-a7中以及内存中把参数值传递给形参虚拟寄存器
                 for (i, (ty, name)) in args.iter().enumerate() {
@@ -30,7 +31,7 @@ pub fn pass(ir: Vec<IRNode>) -> AllocResult {
                 let mut alloc = Allocator::from(func_inner.clone());
                 alloc.main();
                 alloc_res.ir.extend(alloc.get_ir());
-                alloc_res.color.entry(func_name.clone().unwrap()).or_insert(Box::new(HashMap::new())).extend(alloc.get_color());
+                alloc_res.color.insert(func_name.clone().unwrap(), Box::new(alloc.get_color()));
                 alloc_res.spill_temps.insert(func_name.clone().unwrap(), Box::new(alloc.get_spill_vars()));
 
                 func_inner.clear();
@@ -41,7 +42,6 @@ pub fn pass(ir: Vec<IRNode>) -> AllocResult {
                 if func_name.is_some() {
                     match &node {
                         IRNode::Call(res, res_ty, name, args) => {
-                            // 这里还应该保护所有caller save的寄存器
                             func_inner.push(IRNode::CallerProtect(name.clone(), Vec::new())); // 预留保护命令
                             for (i, (ty, arg)) in args.iter().enumerate() {
                                 if (i as i32) < a_num {
@@ -60,7 +60,6 @@ pub fn pass(ir: Vec<IRNode>) -> AllocResult {
                             if let Some(res) = res {
                                 func_inner.push(IRNode::Move(ty.clone(), "%a0".to_string(), res.clone()));
                             }
-                            // 这里还应该恢复所有callee save的寄存器
                             func_inner.push(node.clone());
                         }
                         _ => {

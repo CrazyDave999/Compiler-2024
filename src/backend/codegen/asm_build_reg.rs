@@ -9,7 +9,7 @@ use super::IRNode;
 // 前面的mem2reg和regalloc应该保证所有普通指令的操作数是数字，被染色的虚拟寄存器，或全局变量
 
 pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
-    let a_num = 2;
+    let a_num = 8;
 
     let mut asm = Vec::new();
     let mut bss = Vec::new();
@@ -19,7 +19,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
     let mut i = 0;
     while i < alloc_res.ir.len() {
         match &alloc_res.ir[i] {
-            IRNode::FuncBegin(_, name, args) => {
+            IRNode::FuncBegin(_, name, _) => {
                 let color = alloc_res.color[name].as_ref();
                 let spill_temps = alloc_res.spill_temps[name].as_ref();
 

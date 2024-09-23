@@ -1,7 +1,7 @@
 mod regalloc;
 mod allocator;
-mod cfg;
 mod utils;
+mod alloc_ir;
 
 use super::ir::IRNode;
 use allocator::Allocator;
