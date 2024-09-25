@@ -286,24 +286,28 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                         }
                         IRNode::FuncEnd => { break; }
                         IRNode::Move(_, rd, rs) => {
-                            match rs.parse::<i32>() {
-                                Ok(val) => {
-                                    addi(&color[rd], &"zero".to_string(), val, &mut asm);
-                                }
-                                Err(_) => {
-                                    match rs.chars().nth(0).unwrap() {
-                                        '%' => {
-                                            if color[rd] != color[rs] {
-                                                asm.push(ASMNode::Move(
-                                                    color[rd].clone(),
-                                                    color[rs].clone(),
-                                                ));
+                            if rs=="null"{
+                                addi(&color[rd], &"zero".to_string(), 0, &mut asm);
+                            }else {
+                                match rs.parse::<i32>() {
+                                    Ok(val) => {
+                                        addi(&color[rd], &"zero".to_string(), val, &mut asm);
+                                    }
+                                    Err(_) => {
+                                        match rs.chars().nth(0).unwrap() {
+                                            '%' => {
+                                                if color[rd] != color[rs] {
+                                                    asm.push(ASMNode::Move(
+                                                        color[rd].clone(),
+                                                        color[rs].clone(),
+                                                    ));
+                                                }
                                             }
+                                            '@' => {
+                                                get_val(&rs, &color[rd], color, &mut asm);
+                                            }
+                                            _ => unreachable!()
                                         }
-                                        '@' => {
-                                            get_val(&rs, &color[rd], color, &mut asm);
-                                        }
-                                        _ => unreachable!()
                                     }
                                 }
                             }

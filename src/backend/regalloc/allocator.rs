@@ -155,10 +155,41 @@ impl Allocator {
             }
         }
 
-        // 给虚拟寄存器编号，给move指令编号
         res.virtual_regs.extend(
             ["%zero", "%ra", "%sp", "%gp", "%tp", "%t0", "%t1", "%t2", "%s0", "%s1", "%a0", "%a1", "%a2", "%a3", "%a4", "%a5", "%a6", "%a7", "%s2", "%s3", "%s4", "%s5", "%s6", "%s7", "%s8", "%s9", "%s10", "%s11", "%t3", "%t4", "%t5", "%t6"].into_iter().map(|x| x.to_string())
         );
+
+        // 去除一些只有def没有use的寄存器对应的指令
+        let mut changed = true;
+        while changed {
+            changed = false;
+            let mut all_use = HashSet::new();
+            for bb in res.nodes.iter() {
+                for inst in bb.ch.iter() {
+                    all_use.extend(inst.ir_.get_use().into_iter());
+                }
+            }
+            for bb in res.nodes.iter_mut() {
+                bb.ch.retain(|inst| {
+                    let def = inst.ir_.get_def();
+                    if def.is_empty() {
+                        true
+                    } else {
+                        for x in def.iter() {
+                            if all_use.contains(x) || res.virtual_regs.contains(x) {
+                                return true;
+                            }
+                        }
+                        changed = true;
+                        false
+                    }
+                });
+            }
+        }
+
+
+        // 给虚拟寄存器编号，给move指令编号
+
         for (i, reg) in res.virtual_regs.iter().enumerate() {
             res.virtual_rnk.insert(reg.clone(), i);
         }
@@ -221,7 +252,7 @@ impl Allocator {
 
         for reg in self.pre_colored.iter() {
             self.degree[reg] = usize::MAX;
-            self.color[reg]=reg;
+            self.color[reg] = reg;
         }
 
         for reg in self.initial.iter() {
@@ -253,6 +284,15 @@ impl Allocator {
         }
     }
     fn live_analysis(&mut self) {
+        // 先计算各个基本快的等效use,def
+        for bb in self.nodes.iter_mut() {
+            bb.use_.clear();
+            bb.def_.clear();
+            for inst in bb.ch.iter() {
+                bb.use_ = bb.use_.union(&inst.use_.difference(&bb.def_).collect()).collect();
+                bb.def_ = bb.def_.union(&inst.def_).collect();
+            }
+        }
         let mut changed = true;
         while changed {
             changed = false;
@@ -360,10 +400,9 @@ impl Allocator {
         ).collect()
     }
     fn node_moves(&self, n: usize) -> BitSet {
-        let res = self.move_list[n].intersection(
+        self.move_list[n].intersection(
             &self.active_moves.union(&self.work_list_moves).collect()
-        ).collect();
-        res
+        ).collect()
     }
     fn move_related(&self, n: usize) -> bool {
         !self.node_moves(n).is_empty()
@@ -413,13 +452,15 @@ impl Allocator {
             self.move_inst[m].def_.iter().next().unwrap(),
             self.move_inst[m].use_.iter().next().unwrap()
         );
-        let (u, v) = if self.pre_colored.contains(y) {
+        let (mut u, mut v) = if self.pre_colored.contains(y) {
             (y, x)
         } else {
             (x, y)
         };
         self.work_list_moves.remove(m);
 
+        u = self.get_alias(u);
+        v = self.get_alias(v);
         if u == v {
             self.coalesced_moves.insert(m);
             self.add_work_list(u);
@@ -469,12 +510,11 @@ impl Allocator {
         } else {
             self.spill_work_list.remove(v);
         }
-
-        self.alias[v] = u;
         self.coalesced_nodes.insert(v);
+        self.alias[v] = u;
 
         let move_list_v = self.move_list[v].clone();
-        self.move_list.get_mut(u).unwrap().extend(move_list_v.into_iter());
+        self.move_list[u].extend(move_list_v.into_iter());
         self.enable_moves([v].into_iter().collect());
         for t in self.adjacent(v).iter() {
             self.add_edge(t, u);
@@ -565,7 +605,6 @@ impl Allocator {
         self.initial = self.colored_nodes.union(
             &self.coalesced_nodes.union(&new_temps).collect()
         ).collect();
-        self.initial = new_temps.clone();
         self.colored_nodes.clear();
         self.coalesced_nodes.clear();
     }
@@ -671,11 +710,12 @@ impl Allocator {
             .map(|x| self.phy_reg_names[x].clone()).collect::<Vec<_>>();
         res.push(IRNode::CalleeProtect(callee_protect.clone()));
 
-        let mut caller_protect_map = HashMap::new();
+        let mut caller_protect_map = Vec::new();
+
         for node in self.nodes.iter() {
             for inst in node.ch.iter() {
                 match &inst.ir_ {
-                    IRNode::Call(_, _, name, _) => {
+                    IRNode::Call(_, _, _, _) => {
                         let live_colors: BitSet = inst.out_.iter().filter_map(
                             |x| {
                                 if !self.pre_colored.contains(x) {
@@ -687,7 +727,7 @@ impl Allocator {
                         ).collect();
                         let caller_protect = live_colors.intersection(&self.caller_saved_colors)
                             .map(|x| self.phy_reg_names[x].clone()).collect::<Vec<_>>();
-                        caller_protect_map.insert(name.clone(), caller_protect);
+                        caller_protect_map.push(caller_protect);
                     }
                     IRNode::Ret(_, _) => {
                         res.push(IRNode::CalleeRecover(callee_protect.clone()));
@@ -697,13 +737,15 @@ impl Allocator {
                 res.push(inst.ir_.clone())
             }
         }
+        let mut call_cnt = 0;
         for ir in res.iter_mut() {
             match ir {
-                IRNode::CallerProtect(name, regs) => {
-                    *regs = caller_protect_map[name].clone();
+                IRNode::CallerProtect(_, regs) => {
+                    *regs = caller_protect_map[call_cnt].clone();
                 }
-                IRNode::CallerRecover(name, regs) => {
-                    *regs = caller_protect_map[name].clone();
+                IRNode::CallerRecover(_, regs) => {
+                    *regs = caller_protect_map[call_cnt].clone();
+                    call_cnt += 1;
                 }
                 _ => {}
             }

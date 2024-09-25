@@ -140,6 +140,16 @@ impl IRNode {
                 set.insert(op2.clone());
                 set
             }
+            IRNode::Call(_, _, _, args) => {
+                let mut set = HashSet::new();
+                for (i, _) in args.iter().enumerate() {
+                    if i >= 8 {
+                        break;
+                    }
+                    set.insert(format!("%a{}", i));
+                }
+                set
+            }
             IRNode::Move(_, _, rs) => {
                 let mut set = HashSet::new();
                 set.insert(rs.clone());
@@ -220,6 +230,11 @@ impl IRNode {
             IRNode::ICMP(res, _, _, _, _) => {
                 let mut set = HashSet::new();
                 set.insert(res.clone());
+                set
+            }
+            IRNode::Call(Some(_), _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert("%a0".to_string());
                 set
             }
             IRNode::Move(_, rd, _) => {
