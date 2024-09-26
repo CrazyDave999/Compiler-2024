@@ -363,6 +363,20 @@ impl Allocator {
         for (u, v) in edges {
             self.add_edge(u, v);
         }
+
+        // let mut msg = Vec::new();
+        // for bb in self.nodes.iter(){
+        //     let mut ch_msg = Vec::new();
+        //     for inst in bb.ch.iter(){
+        //         ch_msg.push((
+        //             inst.ir_.clone(),
+        //             inst.in_.iter().map(|x| self.virtual_regs[x].clone()).collect::<Vec<_>>(),
+        //             inst.out_.iter().map(|x| self.virtual_regs[x].clone()).collect::<Vec<_>>(),
+        //         ))
+        //     }
+        //     msg.push(ch_msg);
+        // }
+        // println!("live analysis");
     }
 
     fn add_edge(&mut self, u: usize, v: usize) {
@@ -566,6 +580,14 @@ impl Allocator {
             self.spill_work_list.remove(m);
             self.simplify_work_list.insert(m);
             self.freeze_moves(m);
+        }else{
+            // 如果没有找到，那么就将所有的溢出节点都入栈
+            let spi = self.spill_work_list.clone();
+            for n in spi.iter() {
+                self.simplify_work_list.insert(n);
+                self.freeze_moves(n);
+            }
+            self.spill_work_list.clear();
         }
     }
     fn assign_colors(&mut self) {
@@ -609,6 +631,9 @@ impl Allocator {
         self.coalesced_nodes.clear();
     }
     fn insert_use_def(&mut self, spill_nodes: BitSet) -> BitSet {
+        let spi =self.spilled_nodes.iter().map(
+            |x| self.virtual_regs[x].clone()
+        ).collect::<Vec<_>>();
         let mut spill_temps = BitSet::new();
         for node in spill_nodes.iter() {
             let mut spill_cnt = 0;
@@ -617,7 +642,7 @@ impl Allocator {
                 let mut spill_store = Vec::new();
                 for (i, inst) in bb.ch.iter_mut().enumerate() {
                     if inst.def_.contains(node) {
-                        let spill_name = format!("spill.{}.{}", node, spill_cnt);
+                        let spill_name = format!("%spill.{}.{}", node, spill_cnt);
                         spill_cnt += 1;
 
                         let tmp = self.virtual_regs.len();
@@ -656,7 +681,7 @@ impl Allocator {
                 let mut spill_load = Vec::new();
                 for (i, inst) in bb.ch.iter_mut().enumerate() {
                     if inst.use_.contains(node) {
-                        let spill_name = format!("spill.{}.{}", node, spill_cnt);
+                        let spill_name = format!("%spill.{}.{}", node, spill_cnt);
                         spill_cnt += 1;
 
                         let tmp = self.virtual_regs.len();

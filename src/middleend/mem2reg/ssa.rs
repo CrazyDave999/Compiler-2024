@@ -74,7 +74,8 @@ pub fn eliminate_phi(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<Stri
     put_blank_bb(cfg, names, bb_cnt);
     for name in &*names {
         let mut mv_nodes = Vec::new();
-        for (_, phi) in &cfg.get(name).unwrap().phi.clone() {
+        for phi_name in cfg[name].phi_names.iter(){
+            let phi = &cfg[name].phi[phi_name];
             match phi {
                 IRNode::Phi(res, ty, args) => {
                     for (val, label) in args {

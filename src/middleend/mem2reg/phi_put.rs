@@ -40,6 +40,7 @@ pub fn put_phi(cfg: &mut HashMap<String, BasicBlock>, names: &Vec<String>) -> Ha
                 cfg.get_mut(df_name).unwrap().phi.insert(
                     var.clone(), IRNode::Phi(phi_name(), ty.clone(), vec![]),
                 );
+                cfg.get_mut(df_name).unwrap().phi_names.push(var.clone());
                 phi_queue.push_back(df_name.clone());
             });
         }
@@ -206,10 +207,10 @@ fn supply_phi(cfg: &mut HashMap<String, BasicBlock>) {
                     ).map(
                         |pred| {
                             match ty {
-                                IRType::PTR(_)=> {
+                                IRType::PTR(_) => {
                                     (String::from("null"), pred.clone())
                                 }
-                                _=>{
+                                _ => {
                                     (String::from("0"), pred.clone())
                                 }
                             }

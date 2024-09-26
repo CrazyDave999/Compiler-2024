@@ -7,6 +7,7 @@ pub struct BasicBlock {
     pub succ: HashSet<String>,
     pub ir: Vec<IRNode>,
     pub phi: HashMap<String, IRNode>, // var name -> phi inst
+    pub phi_names: Vec<String>,
     pub dom: HashSet<String>,
     pub i_dom: Vec<String>, // 被自己直接支配的节点
     pub pred: HashSet<String>,
@@ -34,6 +35,7 @@ impl BasicBlock {
             },
             ir: ir.clone(),
             phi: HashMap::new(),
+            phi_names: Vec::new(),
             dom: HashSet::new(),
             i_dom: Vec::new(),
             pred: HashSet::new(),
