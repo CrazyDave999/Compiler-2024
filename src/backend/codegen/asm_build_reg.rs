@@ -286,9 +286,9 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                         }
                         IRNode::FuncEnd => { break; }
                         IRNode::Move(_, rd, rs) => {
-                            if rs=="null"{
+                            if rs == "null" {
                                 addi(&color[rd], &"zero".to_string(), 0, &mut asm);
-                            }else {
+                            } else {
                                 match rs.parse::<i32>() {
                                     Ok(val) => {
                                         addi(&color[rd], &"zero".to_string(), val, &mut asm);
@@ -448,22 +448,41 @@ fn addi(rd: &String, rs: &String, imm: i32, asm: &mut Vec<ASMNode>) {
         if ext < 0 {
             upper += 1;
         }
-        asm.push(ASMNode::Lui(
-            "gp".to_string(),
-            upper.to_string(),
-        ));
-        asm.push(ASMNode::ArithI(
-            "addi".to_string(),
-            "gp".to_string(),
-            "gp".to_string(),
-            ext.to_string(),
-        ));
-        asm.push(ASMNode::Arith(
-            "add".to_string(),
-            rd.clone(),
-            rs.clone(),
-            "gp".to_string(),
-        ))
+        if rs == rd {
+            asm.push(ASMNode::Lui(
+                "gp".to_string(),
+                upper.to_string(),
+            ));
+            asm.push(ASMNode::ArithI(
+                "addi".to_string(),
+                "gp".to_string(),
+                "gp".to_string(),
+                ext.to_string(),
+            ));
+            asm.push(ASMNode::Arith(
+                "add".to_string(),
+                rd.clone(),
+                rd.clone(),
+                "gp".to_string(),
+            ));
+        }else {
+            asm.push(ASMNode::Lui(
+                rd.clone(),
+                upper.to_string(),
+            ));
+            asm.push(ASMNode::ArithI(
+                "addi".to_string(),
+                rd.clone(),
+                rd.clone(),
+                ext.to_string(),
+            ));
+            asm.push(ASMNode::Arith(
+                "add".to_string(),
+                rd.clone(),
+                rs.clone(),
+                rd.clone(),
+            ))
+        }
     }
 }
 
