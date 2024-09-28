@@ -60,7 +60,6 @@ pub fn put_phi(cfg: &mut HashMap<String, BasicBlock>, names: &Vec<String>) -> Ha
 fn dfs_write_phi(alloc_var: &String, cur: &String, cfg: &mut HashMap<String, BasicBlock>, names: &Vec<String>, stk: &mut Vec<String>, rep: &mut HashMap<String, String>) {
     let cur_stk_len = stk.len();
 
-    // let _f1 = *alloc_var == "%p.29";
     let bb = cfg.get_mut(cur).unwrap();
     if let Some(IRNode::Phi(res, _, _)) = bb.phi.get_mut(alloc_var) {
         stk.push(res.clone());
@@ -69,7 +68,7 @@ fn dfs_write_phi(alloc_var: &String, cur: &String, cfg: &mut HashMap<String, Bas
         match ir {
             IRNode::Load(res, _, ptr) => {
                 if ptr == alloc_var {
-                    rep.insert(res.clone(), stk.last().unwrap().clone());
+                    rep.insert(res.clone(), stk.last().unwrap_or(&"null".to_string()).clone());
                 }
             }
             IRNode::Store(_, val, ptr) => {

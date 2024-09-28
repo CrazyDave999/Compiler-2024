@@ -199,7 +199,7 @@ impl Allocator {
         for bb in res.nodes.iter_mut() {
             for inst in bb.ch.iter_mut() {
                 for reg in inst.ir_.get_use().iter() {
-                    inst.use_.insert(res.virtual_rnk[reg]);
+                    inst.use_.insert(*res.virtual_rnk.get(reg).unwrap_or(&0));
                 }
                 for reg in inst.ir_.get_def().iter() {
                     if !res.virtual_rnk.contains_key(reg) {
@@ -224,6 +224,7 @@ impl Allocator {
 
         for bb in res.nodes.iter() {
             for inst in bb.ch.iter() {
+                res.initial.extend(inst.use_.iter());
                 res.initial.extend(inst.use_.iter());
                 res.initial.extend(inst.def_.iter());
             }
@@ -339,6 +340,8 @@ impl Allocator {
         for bb in self.nodes.iter_mut() {
             bb.use_.clear();
             bb.def_.clear();
+            bb.in_.clear();
+            bb.out_.clear();
             for inst in bb.ch.iter() {
                 bb.use_ = bb.use_.union(&inst.use_.difference(&bb.def_).collect()).collect();
                 bb.def_ = bb.def_.union(&inst.def_).collect();
@@ -414,20 +417,6 @@ impl Allocator {
         for (u, v) in edges {
             self.add_edge(u, v);
         }
-
-        // let mut msg = Vec::new();
-        // for bb in self.nodes.iter(){
-        //     let mut ch_msg = Vec::new();
-        //     for inst in bb.ch.iter(){
-        //         ch_msg.push((
-        //             inst.ir_.clone(),
-        //             inst.in_.iter().map(|x| self.virtual_regs[x].clone()).collect::<Vec<_>>(),
-        //             inst.out_.iter().map(|x| self.virtual_regs[x].clone()).collect::<Vec<_>>(),
-        //         ))
-        //     }
-        //     msg.push(ch_msg);
-        // }
-        // println!("live analysis");
     }
 
     fn add_edge(&mut self, u: usize, v: usize) {
@@ -627,7 +616,7 @@ impl Allocator {
                 m = n;
             }
         }
-        if m == usize::MAX{
+        if m == usize::MAX {
             m = self.spill_work_list.iter().next().unwrap().clone();
         }
         self.spill_work_list.remove(m);
@@ -768,7 +757,13 @@ impl Allocator {
         for node in self.nodes.iter() {
             for inst in node.ch.iter() {
                 callee_protect.extend(
-                    inst.def_.iter().map(|x| self.color[x])
+                    inst.def_.iter().map(|x| {
+                        if self.color[x] != usize::MAX {
+                            self.color[x].clone()
+                        } else {
+                            0
+                        }
+                    })
                 )
             }
         }
@@ -784,7 +779,7 @@ impl Allocator {
                     IRNode::Call(_, _, _, _) => {
                         let live_colors: BitSet = inst.out_.iter().filter_map(
                             |x| {
-                                if self.color[x]!=usize::MAX&&!self.pre_colored.contains(x) {
+                                if self.color[x] != usize::MAX && !self.pre_colored.contains(x) {
                                     Some(self.color[x].clone())
                                 } else {
                                     None

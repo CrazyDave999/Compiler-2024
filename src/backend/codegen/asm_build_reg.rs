@@ -87,7 +87,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                         IRNode::Load(res, ty, ptr) => {
                             match ptr.chars().nth(0).unwrap() {
                                 '%' => {
-                                    load(ty.size(), &color[res], 0, &color[ptr], &mut asm);
+                                    load(ty.size(), &color[res], 0, &color.get(ptr).unwrap_or(&"zero".to_string()), &mut asm);
                                 }
                                 '@' => {
                                     load_global(&color[res], &ptr[1..].to_string(), ty, &mut asm);
@@ -114,7 +114,9 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     load_global(&"gp".to_string(), &ptr[1..].to_string(), &IRType::PTR(Box::from(ty.clone())), &mut asm);
                                     "gp".to_string()
                                 }
-                                _ => unreachable!()
+                                _ => {
+                                    "zero".to_string()
+                                }
                             };
                             let first_ind = &indexes[0];
                             let first_reg = get_val(&first_ind.1, &"tp".to_string(), &color, &mut asm);
@@ -158,7 +160,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     "ashr" => "sra".to_string(),
                                     _ => op.clone()
                                 },
-                                color[res].clone(),
+                                color.get(res).unwrap_or(&"zero".to_string()).clone(),
                                 lhs_reg,
                                 rhs_reg,
                             ));
@@ -296,10 +298,10 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     Err(_) => {
                                         match rs.chars().nth(0).unwrap() {
                                             '%' => {
-                                                if color[rd] != color[rs] {
+                                                if color[rd] != *color.get(rs).unwrap_or(&"zero".to_string()) {
                                                     asm.push(ASMNode::Move(
                                                         color[rd].clone(),
-                                                        color[rs].clone(),
+                                                        color.get(rs).unwrap_or(&"zero".to_string()).clone(),
                                                     ));
                                                 }
                                             }
@@ -388,7 +390,7 @@ fn get_val(val: &String, tmp_reg: &String, color: &HashMap<String, String>, asm:
             }
             Err(_) => {
                 match val.chars().nth(0).unwrap() {
-                    '%' => color[val].clone(),
+                    '%' => color.get(val).unwrap_or(&"zero".to_string()).clone(),
                     '@' => {
                         asm.push(ASMNode::Lui(
                             tmp_reg.clone(),
@@ -465,7 +467,7 @@ fn addi(rd: &String, rs: &String, imm: i32, asm: &mut Vec<ASMNode>) {
                 rd.clone(),
                 "gp".to_string(),
             ));
-        }else {
+        } else {
             asm.push(ASMNode::Lui(
                 rd.clone(),
                 upper.to_string(),
