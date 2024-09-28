@@ -627,11 +627,12 @@ impl Allocator {
                 m = n;
             }
         }
-        if m != usize::MAX {
-            self.spill_work_list.remove(m);
-            self.simplify_work_list.insert(m);
-            self.freeze_moves(m);
+        if m == usize::MAX{
+            m = self.spill_work_list.iter().next().unwrap().clone();
         }
+        self.spill_work_list.remove(m);
+        self.simplify_work_list.insert(m);
+        self.freeze_moves(m);
     }
     fn assign_colors(&mut self) {
         while !self.select_stack.is_empty() {
@@ -783,7 +784,7 @@ impl Allocator {
                     IRNode::Call(_, _, _, _) => {
                         let live_colors: BitSet = inst.out_.iter().filter_map(
                             |x| {
-                                if !self.pre_colored.contains(x) {
+                                if self.color[x]!=usize::MAX&&!self.pre_colored.contains(x) {
                                     Some(self.color[x].clone())
                                 } else {
                                     None
