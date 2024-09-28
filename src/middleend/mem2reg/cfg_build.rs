@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use super::IRType;
 use super::IRNode;
 
@@ -58,40 +58,28 @@ impl BasicBlock {
 }
 
 // 接受一个函数内部的ir
-pub fn build_cfg(mut ir: Vec<IRNode>) -> (HashMap<String, BasicBlock>, Vec<String>) {
+pub fn build_cfg(ir: Vec<IRNode>) -> (HashMap<String, BasicBlock>, Vec<String>) {
     // 建图
     let mut cfg: HashMap<String, BasicBlock> = HashMap::new();
     let mut names = Vec::new();
-    let mut is_entry = true;
-    while let Some(pos) = ir.iter().position(
-        |x| x.is_terminator()
-    ) {
-        let mut segment = ir.split_off(pos + 1).iter().cloned().collect::<VecDeque<_>>();
-        while let Some(IRNode::Br(_)) = segment.front() {
-            segment.pop_front();
+    let mut cur_label = Some(String::from("entry"));
+    let mut cur_ch = Vec::new();
+    for inst in ir.iter() {
+        if let IRNode::Label(name) = inst {
+            cur_label = Some(name.clone());
         }
-        let extracted_segment = std::mem::replace(&mut ir, segment.iter().cloned().collect::<Vec<_>>());
-        let name = if is_entry {
-            is_entry = false;
-            String::from("entry")
-        } else {
-            match extracted_segment.first().unwrap() {
-                IRNode::Label(name) => name.clone(),
-                _ => unreachable!(),
-            }
-        };
+        if cur_label.is_none() {
+            continue;
+        }
+        cur_ch.push(inst.clone());
+        if inst.is_terminator() {
+            names.push(cur_label.clone().unwrap());
+            cfg.insert(cur_label.clone().unwrap(), BasicBlock::from(cur_ch.clone()));
+            cur_label = None;
+            cur_ch.clear();
+        }
+    }
 
-        names.push(name.clone());
-        cfg.insert(name, BasicBlock::from(extracted_segment.iter().cloned().collect()));
-    }
-    if !ir.is_empty() {
-        let name = match ir.first().unwrap() {
-            IRNode::Label(name) => name.clone(),
-            _ => String::from("entry"),
-        };
-        names.push(name.clone());
-        cfg.insert(name, BasicBlock::from(ir));
-    }
     for name in &names {
         let ch = cfg.get(name).cloned().unwrap().succ;
         for node in ch {

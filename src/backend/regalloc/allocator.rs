@@ -14,7 +14,7 @@ pub struct Allocator {
     nodes: Vec<BasicBlock>, // bb
     virtual_regs: Vec<String>,
     virtual_rnk: HashMap<String, usize>,
-    exit: usize,
+    exit: BitSet,
     move_inst: Vec<Instruction>,
     phy_reg_names: Vec<String>,
 
@@ -54,6 +54,8 @@ pub struct Allocator {
     move_list: Vec<BitSet>,
     alias: Vec<usize>,
     color: Vec<usize>,
+
+    num: usize,
 }
 
 impl Allocator {
@@ -63,14 +65,14 @@ impl Allocator {
             nodes: Vec::new(),
             virtual_regs: Vec::new(),
             virtual_rnk: HashMap::new(),
-            exit: 0,
+            exit: BitSet::new(),
             move_inst: Vec::new(),
             phy_reg_names: Vec::from_iter([
                 "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
             ].iter().map(|&x| x.to_string())),
             k: 27,
             phy_regs: BitSet::from_iter(
-                0..32
+                5..32
             ),
             caller_saved_regs: BitSet::from_iter(
                 (5..8).chain(10..18).chain(28..32)
@@ -79,7 +81,7 @@ impl Allocator {
                 (8..10).chain(18..28)
             ),
             phy_colors: BitSet::from_iter(
-                0..32
+                5..32
             ),
             caller_saved_colors: BitSet::from_iter(
                 (5..8).chain(10..18).chain(28..32)
@@ -109,6 +111,7 @@ impl Allocator {
             move_list: Vec::new(),
             alias: Vec::new(),
             color: Vec::new(),
+            num: 0,
         };
         let mut bb = BasicBlock::new();
         let mut label_rnk = HashMap::new();
@@ -130,7 +133,7 @@ impl Allocator {
                 bb = BasicBlock::new();
             }
         }
-        res.nodes.push(bb.clone());
+
 
         let mut cfg_edges = Vec::new();
         for (i, bb) in res.nodes.iter().enumerate() {
@@ -151,7 +154,7 @@ impl Allocator {
         }
         for (i, bb) in res.nodes.iter().enumerate() {
             if bb.succ.is_empty() {
-                res.exit = i;
+                res.exit.insert(i);
             }
         }
 
@@ -259,6 +262,7 @@ impl Allocator {
             self.degree[reg] = 0;
             self.adj_list[reg].clear();
         }
+        self.num = self.initial.len();
     }
 
     pub fn main(&mut self) {
@@ -267,6 +271,7 @@ impl Allocator {
         self.build();
         self.make_work_list();
         while !self.simplify_work_list.is_empty() || !self.work_list_moves.is_empty() || !self.freeze_work_list.is_empty() || !self.spill_work_list.is_empty() {
+            // self.check();
             if !self.simplify_work_list.is_empty() {
                 self.simplify();
             } else if !self.work_list_moves.is_empty() {
@@ -283,6 +288,52 @@ impl Allocator {
             self.main();
         }
     }
+    // fn check(&self) {
+    //     // 检查不变式的正确性
+    //     // 所有工作表的节点数总和不变
+    //     let sum = self.simplify_work_list.len() + self.freeze_work_list.len() + self.spill_work_list.len() + self.spilled_nodes.len() + self.coalesced_nodes.len() + self.colored_nodes.len() + self.select_stack.len();
+    //     assert_eq!(sum, self.num);
+    //     // 度的不变式
+    //     let deg_check_list: BitSet = self.simplify_work_list.union(
+    //         &self.freeze_work_list.union(
+    //             &self.spill_work_list
+    //         ).collect()
+    //     ).collect();
+    //     for u in deg_check_list.iter() {
+    //         let deg = self.adj_list[u].intersection(
+    //             &self.pre_colored.union(
+    //                 &deg_check_list
+    //             ).collect()
+    //         ).count();
+    //         assert_eq!(deg, self.degree[u]);
+    //     }
+    //     // 简化工作表的不变式
+    //     for u in self.simplify_work_list.iter() {
+    //         assert!(self.degree[u] < self.k);
+    //         assert!(
+    //             self.move_list[u].is_disjoint(
+    //                 &self.active_moves.union(
+    //                     &self.work_list_moves
+    //                 ).collect()
+    //             )
+    //         );
+    //     }
+    //     // 冻结工作表的不变式
+    //     for u in self.freeze_work_list.iter() {
+    //         assert!(self.degree[u] < self.k);
+    //         assert!(
+    //             !self.move_list[u].is_disjoint(
+    //                 &self.active_moves.union(
+    //                     &self.work_list_moves
+    //                 ).collect()
+    //             )
+    //         );
+    //     }
+    //     // 溢出工作表的不变式
+    //     for u in self.spill_work_list.iter() {
+    //         assert!(self.degree[u] >= self.k);
+    //     }
+    // }
     fn live_analysis(&mut self) {
         // 先计算各个基本快的等效use,def
         for bb in self.nodes.iter_mut() {
@@ -298,7 +349,7 @@ impl Allocator {
             changed = false;
             let mut queue = VecDeque::new();
             let mut visited = BitSet::new();
-            queue.push_back(self.exit);
+            queue.extend(self.exit.iter());
             while !queue.is_empty() {
                 let cur = queue.pop_front().unwrap();
                 if visited.contains(cur) {
@@ -580,14 +631,6 @@ impl Allocator {
             self.spill_work_list.remove(m);
             self.simplify_work_list.insert(m);
             self.freeze_moves(m);
-        }else{
-            // 如果没有找到，那么就将所有的溢出节点都入栈
-            let spi = self.spill_work_list.clone();
-            for n in spi.iter() {
-                self.simplify_work_list.insert(n);
-                self.freeze_moves(n);
-            }
-            self.spill_work_list.clear();
         }
     }
     fn assign_colors(&mut self) {
@@ -609,7 +652,7 @@ impl Allocator {
                 if !ok_colors.is_disjoint(&self.callee_saved_colors) {
                     ok_colors = ok_colors.intersection(&self.callee_saved_colors).collect();
                 }
-                let c = ok_colors.iter().next().unwrap().clone();
+                let c = ok_colors.iter().next().unwrap();
 
                 self.color[n] = c;
             }
@@ -631,9 +674,6 @@ impl Allocator {
         self.coalesced_nodes.clear();
     }
     fn insert_use_def(&mut self, spill_nodes: BitSet) -> BitSet {
-        let spi =self.spilled_nodes.iter().map(
-            |x| self.virtual_regs[x].clone()
-        ).collect::<Vec<_>>();
         let mut spill_temps = BitSet::new();
         for node in spill_nodes.iter() {
             let mut spill_cnt = 0;
@@ -781,7 +821,9 @@ impl Allocator {
     pub fn get_color(&self) -> HashMap<String, String> {
         let mut res: HashMap<String, String> = HashMap::new();
         for (k, v) in self.virtual_rnk.iter() {
-            res.insert(k.clone(), self.phy_reg_names[self.color[*v]].clone());
+            if self.color[*v] != usize::MAX {
+                res.insert(k.clone(), self.phy_reg_names[self.color[*v]].clone());
+            }
         }
         res
     }

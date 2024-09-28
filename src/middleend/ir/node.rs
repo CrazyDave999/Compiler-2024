@@ -38,7 +38,7 @@ pub enum IRNode {
 impl IRNode {
     pub fn is_terminator(&self) -> bool {
         match self {
-            IRNode::Br(_) | IRNode::BrCond(_, _, _) => true,
+            IRNode::Br(_) | IRNode::BrCond(_, _, _) | IRNode::Ret(_, _) => true,
             _ => false
         }
     }
