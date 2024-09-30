@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max};
 use std::collections::HashMap;
 use crate::middleend::ir::IRType;
 use super::ASMNode;
@@ -30,6 +30,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
 
                 let mut contains_call = false;
                 let mut max_call_arg_spill = 0;
+                let mut max_caller_protect = 0;
 
                 for j in i + 1.. {
                     match &alloc_res.ir[j] {
@@ -45,13 +46,14 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                             alloc_size += args.len() as i32 * 4;
                         }
                         IRNode::CallerProtect(_, args) => {
-                            alloc_size += args.len() as i32 * 4;
+                            max_caller_protect = max(max_caller_protect, args.len() as i32 * 4);
                         }
                         IRNode::FuncEnd => { break; }
                         _ => {}
                     }
                 }
                 alloc_size += max_call_arg_spill;
+                alloc_size += max_caller_protect;
 
                 if contains_call {
                     alloc_size += 4;
@@ -350,6 +352,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                             }
                         }
                         IRNode::CallerRecover(_, args) => {
+                            offset += (args.len() * 4) as i32;
                             for reg in args {
                                 load(4, reg, map[reg], &"sp".to_string(), &mut asm);
                             }

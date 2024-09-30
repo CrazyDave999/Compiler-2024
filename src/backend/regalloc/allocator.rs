@@ -267,24 +267,34 @@ impl Allocator {
     }
 
     pub fn main(&mut self) {
+        // println!("#####main#####");
         self.reset();
+        // println!("live_analysis");
         self.live_analysis();
+        // println!("build");
         self.build();
+        // println!("make_work_list");
         self.make_work_list();
         while !self.simplify_work_list.is_empty() || !self.work_list_moves.is_empty() || !self.freeze_work_list.is_empty() || !self.spill_work_list.is_empty() {
             // self.check();
             if !self.simplify_work_list.is_empty() {
+                // println!("simplify");
                 self.simplify();
             } else if !self.work_list_moves.is_empty() {
+                // println!("coalesce");
                 self.coalesce();
             } else if !self.freeze_work_list.is_empty() {
+                // println!("freeze");
                 self.freeze();
             } else if !self.spill_work_list.is_empty() {
+                // println!("select_spill");
                 self.select_spill();
             }
         }
+        // println!("assign_colors");
         self.assign_colors();
         if !self.spilled_nodes.is_empty() {
+            // println!("rewrite_program");
             self.rewrite_program();
             self.main();
         }
@@ -336,15 +346,15 @@ impl Allocator {
     //     }
     // }
     fn live_analysis(&mut self) {
-        // 先计算各个基本快的等效use,def
+        // 先计算各个基本块的等效use,def
         for bb in self.nodes.iter_mut() {
             bb.use_.clear();
             bb.def_.clear();
             bb.in_.clear();
             bb.out_.clear();
             for inst in bb.ch.iter() {
-                bb.use_ = bb.use_.union(&inst.use_.difference(&bb.def_).collect()).collect();
-                bb.def_ = bb.def_.union(&inst.def_).collect();
+                bb.use_.extend(inst.use_.difference(&bb.def_).into_iter());
+                bb.def_.extend(inst.def_.iter());
             }
         }
         let mut changed = true;
@@ -359,18 +369,18 @@ impl Allocator {
                     continue;
                 }
                 visited.insert(cur);
-                let use_ = self.nodes[cur].use_.clone();
-                let def_ = self.nodes[cur].def_.clone();
-                let out_ = self.nodes[cur].out_.clone();
-                let new_in_: BitSet = use_.union(&out_.difference(&def_).collect()).collect();
+                let use_ = &self.nodes[cur].use_;
+                let def_ = &self.nodes[cur].def_;
+                let out_ = &self.nodes[cur].out_;
+                let new_in_: BitSet = use_.union(&out_.difference(def_).collect()).collect();
                 if new_in_ != self.nodes[cur].in_ {
                     changed = true;
                     self.nodes[cur].in_ = new_in_;
                 }
-                let succ = self.nodes[cur].succ.clone();
+                let succ = &self.nodes[cur].succ;
                 let mut new_out_ = BitSet::new();
                 for node in succ.iter() {
-                    new_out_ = new_out_.union(&self.nodes[node].in_).collect();
+                    new_out_.extend(self.nodes[node].in_.iter());
                 }
                 if new_out_ != self.nodes[cur].out_ {
                     changed = true;
@@ -394,7 +404,7 @@ impl Allocator {
                 match &inst.ir_ {
                     IRNode::Move(_, _, rs) => {
                         if is_reg(rs) {
-                            live = live.difference(&inst.use_).collect();
+                            live.remove(self.virtual_rnk[rs]);
                             for n in inst.use_.union(&inst.def_) {
                                 self.move_list[n].insert(inst.idx);
                             }
@@ -404,10 +414,12 @@ impl Allocator {
                     _ => {}
                 }
                 inst.out_ = live.clone();
-                live = live.union(&inst.def_).collect();
+                live.extend(inst.def_.iter());
                 for d in inst.def_.iter() {
                     for l in live.iter() {
-                        edges.push((l, d));
+                        if l!=d {
+                            edges.push((l, d));
+                        }
                     }
                 }
                 live = inst.use_.union(&live.difference(&inst.def_).collect()).collect();
@@ -420,7 +432,7 @@ impl Allocator {
     }
 
     fn add_edge(&mut self, u: usize, v: usize) {
-        if u != v && !self.adj_set.contains(&(u, v)) {
+        if !self.adj_set.contains(&(u, v)) {
             self.adj_set.insert((u, v));
             self.adj_set.insert((v, u));
             if !self.pre_colored.contains(u) {
@@ -459,7 +471,7 @@ impl Allocator {
         ).collect()
     }
     fn move_related(&self, n: usize) -> bool {
-        !self.node_moves(n).is_empty()
+        !self.move_list[n].is_disjoint(&self.active_moves) || !self.move_list[n]. is_disjoint(&self.work_list_moves)
     }
 
     fn simplify(&mut self) {
