@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use super::IRNode;
 use super::cfg_build::BasicBlock;
 
@@ -72,9 +72,43 @@ fn put_blank_bb(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>, 
 // eliminate phi and insert move
 pub fn eliminate_phi(cfg: &mut HashMap<String, BasicBlock>, names: &mut Vec<String>, bb_cnt: &mut i32) {
     put_blank_bb(cfg, names, bb_cnt);
-    for name in &*names {
+    let mut tmp_cnt = 0;
+    for name in names.iter() {
+        let mut tmp_map:HashMap<String, Box<HashMap<String, String>>>=HashMap::new();
+        let mut phi_res_set = HashSet::new();
         let mut mv_nodes = Vec::new();
-        for phi_name in cfg[name].phi_names.iter(){
+
+        // 先解决phi指令的参数和结果重名的情况，这种情况下在该参数的label对应的块中先插入临时变量move，并且将该参数名字改为临时变量
+        for phi_name in cfg[name].phi_names.clone().iter(){
+            let phi = cfg.get_mut(name).unwrap().phi.get_mut(phi_name).unwrap();
+            match phi {
+                IRNode::Phi(res, ty, args) => {
+                    for (val, label) in args.iter_mut() {
+                        if phi_res_set.contains(val) {
+                            if !tmp_map[val].contains_key(label){
+                                let tmp_name = format!("{}.tmp.{}", val, tmp_cnt);
+                                tmp_cnt += 1;
+                                mv_nodes.push((
+                                    label.clone(),
+                                    IRNode::Move(
+                                        ty.clone(),
+                                        tmp_name.clone(),
+                                        val.clone(),
+                                    )
+                                ));
+                                tmp_map.get_mut(val).unwrap().insert(label.clone(), tmp_name.clone());
+                            }
+                            *val = tmp_map[val][label].clone();
+                        }
+                    }
+                    phi_res_set.insert(res.clone());
+                    tmp_map.insert(res.clone(), Box::new(HashMap::new()));
+                }
+                _ => unreachable!()
+            }
+        }
+
+        for phi_name in cfg[name].phi_names.iter() {
             let phi = &cfg[name].phi[phi_name];
             match phi {
                 IRNode::Phi(res, ty, args) => {
