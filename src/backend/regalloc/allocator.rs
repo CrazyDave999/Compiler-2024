@@ -404,7 +404,7 @@ impl Allocator {
                 match &inst.ir_ {
                     IRNode::Move(_, _, rs) => {
                         if is_reg(rs) {
-                            live.remove(self.virtual_rnk[rs]);
+                            live.remove(*self.virtual_rnk.get(rs).unwrap_or(&0));
                             for n in inst.use_.union(&inst.def_) {
                                 self.move_list[n].insert(inst.idx);
                             }

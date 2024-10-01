@@ -240,7 +240,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
         }
         ASTNode::Block(ch, _) => {
             scope.push(ScopeType::Block);
-            for node in ch {
+            for node in ch.iter_mut() {
                 dfs(node, scope, ctx)?;
             }
             scope.pop();
@@ -539,7 +539,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                 }
                 Ok(ExprInfo::void())
             } else {
-                return Err(("Invalid Type", sp.clone()));
+                Err(("Invalid Type", sp.clone()))
             }
         }
         ASTNode::ForStmt(expr1, expr2, expr3, block, sp) => {

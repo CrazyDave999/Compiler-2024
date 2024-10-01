@@ -3,6 +3,7 @@ all: build
 PROJECT_NAME = compiler-2024
 
 build:
+	ulimit -s 65536
 	cargo build
 
 run:
