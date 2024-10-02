@@ -1,6 +1,6 @@
 use pest::Span;
 use super::Type;
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ASTNode<'a> {
     Root(Vec<ASTNode<'a>>, Span<'a>),
     VarDecl(Type<'a>, Vec<(&'a str, Option<ASTNode<'a>>, i32)>, Span<'a>), // name, expressions
@@ -40,5 +40,6 @@ pub enum ASTNode<'a> {
     FmtStr(Vec<ASTNode<'a>>, Span<'a>),
     Ident(&'a str, Span<'a>, i32, Type<'a>, i32, bool), // index, type, cnt, bool(is_global)
 }
+
 
 
