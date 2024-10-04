@@ -42,7 +42,7 @@ impl IRNode {
             _ => false
         }
     }
-    pub fn get_use_mut(&mut self) -> HashSet<&mut String> {
+    pub fn alloc_get_use_mut(&mut self) -> HashSet<&mut String> {
         match self {
             IRNode::Binary(_, _, _, lhs, rhs) => {
                 let mut set = HashSet::new();
@@ -101,7 +101,7 @@ impl IRNode {
             x.chars().next().unwrap() == '%'
         }).collect()
     }
-    pub fn get_use(&self) -> HashSet<String> {
+    pub fn alloc_get_use(&self) -> HashSet<String> {
         match self {
             IRNode::Binary(_, _, _, lhs, rhs) => {
                 let mut set = HashSet::new();
@@ -170,7 +170,7 @@ impl IRNode {
             x.chars().next().unwrap() == '%'
         }).collect()
     }
-    pub fn get_def_mut(&mut self) -> HashSet<&mut String> {
+    pub fn alloc_get_def_mut(&mut self) -> HashSet<&mut String> {
         match self {
             IRNode::Binary(res, _, _, _, _) => {
                 let mut set = HashSet::new();
@@ -210,7 +210,7 @@ impl IRNode {
             _ => HashSet::new()
         }
     }
-    pub fn get_def(&self) -> HashSet<String> {
+    pub fn alloc_get_def(&self) -> HashSet<String> {
         match self {
             IRNode::Binary(res, _, _, _, _) => {
                 let mut set = HashSet::new();
@@ -257,53 +257,97 @@ impl IRNode {
             x.chars().next().unwrap() == '%'
         }).collect()
     }
-    pub fn get_ir_type(&self, name: &String) -> IRType {
+
+    pub fn inline_get_use_mut(&mut self) -> Vec<&mut String>{
         match self {
-            IRNode::Binary(_, _, ty, _, _) => ty.clone(),
-            IRNode::BrCond(_, _, _) => IRType::i1(),
-            IRNode::Ret(ty, _) => ty.clone(),
-            IRNode::Load(_, ty, _) => ty.clone(),
-            IRNode::Store(ty, _, _) => ty.clone(),
-            IRNode::GetElementPtr(res, ty, ptr, indexes) => {
-                if res == name {
-                    ty.clone()
-                } else if ptr == name {
-                    IRType::PTR(Box::new(IRType::void()))
-                } else {
-                    for (ty, idx) in indexes {
-                        if idx == name {
-                            return ty.clone();
-                        }
-                    }
-                    unreachable!()
-                }
+            IRNode::Binary(_, _, _, lhs, rhs) => {
+                let mut vec = Vec::new();
+                vec.push(lhs);
+                vec.push(rhs);
+                vec
             }
-            IRNode::ICMP(res, cond, ty, op1, op2) => {
-                if res == name || op1 == name || op2 == name {
-                    ty.clone()
-                } else if cond == name {
-                    IRType::i1()
-                } else {
-                    unreachable!()
-                }
+            IRNode::BrCond(cond, _, _) => {
+                let mut vec = Vec::new();
+                vec.push(cond);
+                vec
             }
-            IRNode::Call(res, res_ty, _, args) => {
-                for (ty, arg) in args {
-                    if arg == name {
-                        return ty.clone();
-                    }
-                }
-                if let Some(res) = res {
-                    if res == name {
-                        return res_ty.clone();
-                    }
-                    unreachable!()
-                }
-                unreachable!()
+            IRNode::Load(_, _, ptr) => {
+                let mut vec = Vec::new();
+                vec.push(ptr);
+                vec
             }
-            IRNode::Move(ty, _, _) => ty.clone(),
-            _ => unreachable!()
-        }
+            IRNode::Store(_, val, ptr) => {
+                let mut vec = Vec::new();
+                vec.push(val);
+                vec.push(ptr);
+                vec
+            }
+            IRNode::GetElementPtr(_, _, ptr, indexes) => {
+                let mut vec = Vec::new();
+                vec.push(ptr);
+                for (_, idx) in indexes {
+                    vec.push(idx);
+                }
+                vec
+            }
+            IRNode::ICMP(_, cond, _, op1, op2) => {
+                let mut vec = Vec::new();
+                vec.push(cond);
+                vec.push(op1);
+                vec.push(op2);
+                vec
+            }
+            IRNode::Call(_, _, _, args) => {
+                let mut vec = Vec::new();
+                vec.extend(args.iter_mut().map(|(_, arg)| arg));
+                vec
+            }
+            IRNode::Move(_, _, rs) => {
+                let mut vec = Vec::new();
+                vec.push(rs);
+                vec
+            }
+            _ => Vec::new()
+        }.into_iter().filter(|x| {
+            x.chars().next().unwrap() == '%'
+        }).collect()
+    }
+    pub fn inline_get_def_mut(&mut self)->HashSet<&mut String>{
+        match self {
+            IRNode::Binary(res, _, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::Load(res, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::GetElementPtr(res, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::ICMP(res, _, _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::Call(Some(res), _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::Move(_, rd, _) => {
+                let mut set = HashSet::new();
+                set.insert(rd);
+                set
+            }
+            _ => HashSet::new()
+        }.into_iter().filter(|x| {
+            x.chars().next().unwrap() == '%'
+        }).collect()
     }
 }
 

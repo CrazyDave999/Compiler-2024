@@ -14,6 +14,7 @@ use frontend::semantic;
 pub mod middleend;
 use middleend::ir;
 use middleend::mem2reg;
+use middleend::opt;
 pub mod backend;
 
 use backend::codegen;
@@ -182,9 +183,14 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                     let mut file = File::create("origin.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
 
-                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
+                    let mem2reg_nodes = mem2reg::pass(ir_nodes);
 
                     let mut file = File::create("mem2reg.ll")?;
+                    ir::print_ir(&mem2reg_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+
+                    let opt_nodes = opt::pass(mem2reg_nodes);
+
+                    let mut file = File::create("opt.ll")?;
                     ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
 
                     let alloc = regalloc::pass(opt_nodes);
@@ -230,7 +236,8 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    let opt_nodes = mem2reg::pass(ir_nodes.clone());
+                    let mem2reg_nodes = mem2reg::pass(ir_nodes);
+                    let opt_nodes = opt::pass(mem2reg_nodes);
                     let alloc = regalloc::pass(opt_nodes);
                     match codegen::build_asm(alloc) {
                         Ok(asm_nodes) => {

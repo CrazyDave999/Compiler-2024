@@ -3,7 +3,7 @@ use super::IRNode;
 use super::cfg_build::{BasicBlock, build_cfg};
 use super::dt_build::build_dt;
 use super::phi_put::put_phi;
-use super::ssa::eliminate_phi;
+use super::eliminate_phi::eliminate_phi;
 pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
     let mut res = Vec::new();
     let mut in_func = false;

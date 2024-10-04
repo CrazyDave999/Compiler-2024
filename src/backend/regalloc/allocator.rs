@@ -20,8 +20,8 @@ pub struct Allocator {
 
     k: usize,
     phy_regs: BitSet,
-    caller_saved_regs: BitSet,
-    callee_saved_regs: BitSet,
+    // caller_saved_regs: BitSet,
+    // callee_saved_regs: BitSet,
     spill_temps: BitSet, // 为溢出变量创建的临时变量
     spill_vars: BitSet, // 溢出变量的名字
 
@@ -74,12 +74,12 @@ impl Allocator {
             phy_regs: BitSet::from_iter(
                 5..32
             ),
-            caller_saved_regs: BitSet::from_iter(
-                (5..8).chain(10..18).chain(28..32)
-            ),
-            callee_saved_regs: BitSet::from_iter(
-                (8..10).chain(18..28)
-            ),
+            // caller_saved_regs: BitSet::from_iter(
+            //     (5..8).chain(10..18).chain(28..32)
+            // ),
+            // callee_saved_regs: BitSet::from_iter(
+            //     (8..10).chain(18..28)
+            // ),
             phy_colors: BitSet::from_iter(
                 5..32
             ),
@@ -169,12 +169,12 @@ impl Allocator {
             let mut all_use = HashSet::new();
             for bb in res.nodes.iter() {
                 for inst in bb.ch.iter() {
-                    all_use.extend(inst.ir_.get_use().into_iter());
+                    all_use.extend(inst.ir_.alloc_get_use().into_iter());
                 }
             }
             for bb in res.nodes.iter_mut() {
                 bb.ch.retain(|inst| {
-                    let def = inst.ir_.get_def();
+                    let def = inst.ir_.alloc_get_def();
                     if def.is_empty() {
                         true
                     } else {
@@ -198,10 +198,10 @@ impl Allocator {
         }
         for bb in res.nodes.iter_mut() {
             for inst in bb.ch.iter_mut() {
-                for reg in inst.ir_.get_use().iter() {
+                for reg in inst.ir_.alloc_get_use().iter() {
                     inst.use_.insert(*res.virtual_rnk.get(reg).unwrap_or(&0));
                 }
-                for reg in inst.ir_.get_def().iter() {
+                for reg in inst.ir_.alloc_get_def().iter() {
                     if !res.virtual_rnk.contains_key(reg) {
                         let l = res.virtual_regs.len();
                         res.virtual_regs.push(reg.clone());
@@ -696,7 +696,7 @@ impl Allocator {
                         inst.def_.insert(tmp);
 
                         let node_name = self.virtual_regs[node].clone();
-                        for def_ in inst.ir_.get_def_mut() {
+                        for def_ in inst.ir_.alloc_get_def_mut() {
                             if *def_ == node_name {
                                 *def_ = spill_name.clone();
                             }
@@ -735,7 +735,7 @@ impl Allocator {
                         inst.use_.insert(tmp);
 
                         let node_name = self.virtual_regs[node].clone();
-                        for use_ in inst.ir_.get_use_mut() {
+                        for use_ in inst.ir_.alloc_get_use_mut() {
                             if *use_ == node_name {
                                 *use_ = spill_name.clone();
                             }
