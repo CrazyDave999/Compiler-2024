@@ -80,11 +80,21 @@ pub fn build_cfg(ir: Vec<IRNode>) -> (HashMap<String, BasicBlock>, Vec<String>) 
         }
     }
 
-    for name in &names {
+    for name in names.iter() {
         let ch = cfg.get(name).cloned().unwrap().succ;
         for node in ch {
             cfg.get_mut(&node).unwrap().pred.insert(name.clone());
         }
     }
+
+    for name in names.iter(){
+        if cfg[name].pred.is_empty() && name != "entry" {
+            for succ in cfg[name].succ.clone().iter() {
+                cfg.get_mut(succ).unwrap().pred.remove(name);
+            }
+           cfg.remove(name);
+        }
+    }
+    names.retain(|x| cfg.contains_key(x));
     (cfg, names)
 }

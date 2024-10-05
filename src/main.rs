@@ -182,21 +182,25 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
                     let mut file = File::create("origin.ll")?;
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+                    println!("ir_build ok");
 
                     let mem2reg_nodes = mem2reg::pass(ir_nodes);
 
                     let mut file = File::create("mem2reg.ll")?;
                     ir::print_ir(&mem2reg_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+                    println!("mem2reg ok");
 
                     let opt_nodes = opt::pass(mem2reg_nodes);
 
                     let mut file = File::create("opt.ll")?;
                     ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+                    println!("opt ok");
 
                     let alloc = regalloc::pass(opt_nodes);
 
                     let mut file = File::create("regalloc.ll")?;
                     ir::print_ir(&alloc.ir, &mut file).expect("FUCK YOU PRINT_IR!");
+                    println!("regalloc ok");
 
                     match codegen::build_asm(alloc) {
                         Ok(asm_nodes) => {

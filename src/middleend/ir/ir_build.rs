@@ -836,21 +836,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             ctx.last_label = end_label;
 
 
-            // let res_name = if expr1_info.ty.is_void() {
-            //     String::from("")
-            // } else {
-            //     let cond_name = ctx.generate();
-            //     ctx.insert_statement(IRNode::Phi(
-            //         cond_name.clone(),
-            //         expr1_info.ty.clone(),
-            //         vec![
-            //             (expr1_ir_name, expr1_last_label),
-            //             (expr2_ir_name, expr2_last_label),
-            //         ],
-            //     ));
-            //     cond_name
-            // };
-
             IRInfo {
                 ty: expr1_info.ty.clone(),
                 left_ir_name: if expr1_info.ty.is_void() {
@@ -944,7 +929,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     let res_ty = IRType::from(ty);
                     let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
                     let ptr_name = ctx.generate();
-                    ctx.func_defs.push(IRNode::GetElementPtr(
+                    ctx.insert_statement(IRNode::GetElementPtr(
                         ptr_name.clone(),
                         IRType::Var(lhs_info.ty.get_ir_class_name(), vec![]),
                         lhs_ir_name,
