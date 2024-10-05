@@ -36,7 +36,7 @@ impl Function {
                 if let Some(val) = param_map.get(use_) {
                     *use_ = val.clone();
                 } else {
-                    *use_ = rename_map[use_].clone();
+                    *use_ = rename_map.get(use_).unwrap_or(&"0".to_string()).clone();
                 }
             }
             let mut keep = true; // 如果返回值没有被使用，丢弃move指令

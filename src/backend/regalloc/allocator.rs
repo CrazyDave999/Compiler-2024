@@ -267,34 +267,34 @@ impl Allocator {
     }
 
     pub fn main(&mut self) {
-        // println!("#####main#####");
+        println!("#####main#####");
         self.reset();
-        // println!("live_analysis");
+        println!("live_analysis");
         self.live_analysis();
-        // println!("build");
+        println!("build");
         self.build();
-        // println!("make_work_list");
+        println!("make_work_list");
         self.make_work_list();
         while !self.simplify_work_list.is_empty() || !self.work_list_moves.is_empty() || !self.freeze_work_list.is_empty() || !self.spill_work_list.is_empty() {
             // self.check();
             if !self.simplify_work_list.is_empty() {
-                // println!("simplify");
+                println!("simplify");
                 self.simplify();
             } else if !self.work_list_moves.is_empty() {
-                // println!("coalesce");
+                println!("coalesce");
                 self.coalesce();
             } else if !self.freeze_work_list.is_empty() {
-                // println!("freeze");
+                println!("freeze");
                 self.freeze();
             } else if !self.spill_work_list.is_empty() {
-                // println!("select_spill");
+                println!("select_spill");
                 self.select_spill();
             }
         }
-        // println!("assign_colors");
+        println!("assign_colors");
         self.assign_colors();
         if !self.spilled_nodes.is_empty() {
-            // println!("rewrite_program");
+            println!("rewrite_program");
             self.rewrite_program();
             self.main();
         }
@@ -358,6 +358,7 @@ impl Allocator {
             }
         }
         let mut changed = true;
+        let mut iter = 0;
         while changed {
             changed = false;
             let mut queue = VecDeque::new();
@@ -368,13 +369,14 @@ impl Allocator {
                 if visited.contains(cur) {
                     continue;
                 }
-                visited.insert(cur);
+
                 let use_ = &self.nodes[cur].use_;
                 let def_ = &self.nodes[cur].def_;
                 let out_ = &self.nodes[cur].out_;
                 let new_in_: BitSet = use_.union(&out_.difference(def_).collect()).collect();
                 if new_in_ != self.nodes[cur].in_ {
                     changed = true;
+                    // println!("iter {} failed. {} 's in_ changed to {:?}", iter, self.names[cur], new_in_);
                     self.nodes[cur].in_ = new_in_;
                 }
                 let succ = &self.nodes[cur].succ;
@@ -386,12 +388,17 @@ impl Allocator {
                     changed = true;
                     self.nodes[cur].out_ = new_out_;
                 }
-                for node in self.nodes[cur].pred.iter() {
-                    if !visited.contains(node) {
-                        queue.push_back(node);
+                if !visited.contains(cur) {
+                    for node in self.nodes[cur].pred.iter() {
+                        if !visited.contains(node) {
+                            queue.push_back(node);
+                        }
                     }
                 }
+                visited.insert(cur);
             }
+            println!("iter: {} ok", iter);
+            iter += 1;
         }
     }
 
@@ -417,7 +424,7 @@ impl Allocator {
                 live.extend(inst.def_.iter());
                 for d in inst.def_.iter() {
                     for l in live.iter() {
-                        if l!=d {
+                        if l != d {
                             edges.push((l, d));
                         }
                     }
@@ -471,7 +478,7 @@ impl Allocator {
         ).collect()
     }
     fn move_related(&self, n: usize) -> bool {
-        !self.move_list[n].is_disjoint(&self.active_moves) || !self.move_list[n]. is_disjoint(&self.work_list_moves)
+        !self.move_list[n].is_disjoint(&self.active_moves) || !self.move_list[n].is_disjoint(&self.work_list_moves)
     }
 
     fn simplify(&mut self) {
