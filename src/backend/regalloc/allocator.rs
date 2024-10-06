@@ -17,6 +17,7 @@ pub struct Allocator {
     exit: BitSet,
     move_inst: Vec<Instruction>,
     phy_reg_names: Vec<String>,
+    sorted: Vec<usize>,
 
     k: usize,
     phy_regs: BitSet,
@@ -70,6 +71,7 @@ impl Allocator {
             phy_reg_names: Vec::from_iter([
                 "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
             ].iter().map(|&x| x.to_string())),
+            sorted: Vec::new(),
             k: 27,
             phy_regs: BitSet::from_iter(
                 5..32
@@ -230,6 +232,14 @@ impl Allocator {
             }
         }
         res.initial = res.initial.difference(&res.pre_colored).collect();
+
+        // topological sort
+        // let mut marked = BitSet::new();
+        // let mut stk = Vec::new();
+        // let mut stat = Vec::new();
+        // stat.resize(res.nodes.len(), 0usize);
+        // for i in
+
         res
     }
     fn reset(&mut self) {
@@ -267,34 +277,35 @@ impl Allocator {
     }
 
     pub fn main(&mut self) {
-        println!("#####main#####");
+        // println!("#####main#####");
         self.reset();
-        println!("live_analysis");
+        // println!("live_analysis");
         self.live_analysis();
-        println!("build");
+        // println!("build");
         self.build();
-        println!("make_work_list");
+        // println!("make_work_list");
         self.make_work_list();
+        // println!("algorithms");
         while !self.simplify_work_list.is_empty() || !self.work_list_moves.is_empty() || !self.freeze_work_list.is_empty() || !self.spill_work_list.is_empty() {
             // self.check();
             if !self.simplify_work_list.is_empty() {
-                println!("simplify");
+                // println!("simplify");
                 self.simplify();
             } else if !self.work_list_moves.is_empty() {
-                println!("coalesce");
+                // println!("coalesce");
                 self.coalesce();
             } else if !self.freeze_work_list.is_empty() {
-                println!("freeze");
+                // println!("freeze");
                 self.freeze();
             } else if !self.spill_work_list.is_empty() {
-                println!("select_spill");
+                // println!("select_spill");
                 self.select_spill();
             }
         }
-        println!("assign_colors");
+        // println!("assign_colors");
         self.assign_colors();
         if !self.spilled_nodes.is_empty() {
-            println!("rewrite_program");
+            // println!("rewrite_program");
             self.rewrite_program();
             self.main();
         }
@@ -370,15 +381,9 @@ impl Allocator {
                     continue;
                 }
 
-                let use_ = &self.nodes[cur].use_;
-                let def_ = &self.nodes[cur].def_;
-                let out_ = &self.nodes[cur].out_;
-                let new_in_: BitSet = use_.union(&out_.difference(def_).collect()).collect();
-                if new_in_ != self.nodes[cur].in_ {
-                    changed = true;
-                    // println!("iter {} failed. {} 's in_ changed to {:?}", iter, self.names[cur], new_in_);
-                    self.nodes[cur].in_ = new_in_;
-                }
+                let use_ = &self.nodes[cur].use_.clone();
+                let def_ = &self.nodes[cur].def_.clone();
+
                 let succ = &self.nodes[cur].succ;
                 let mut new_out_ = BitSet::new();
                 for node in succ.iter() {
@@ -388,6 +393,15 @@ impl Allocator {
                     changed = true;
                     self.nodes[cur].out_ = new_out_;
                 }
+
+                let out_ = &self.nodes[cur].out_;
+                let new_in_: BitSet = use_.union(&out_.difference(def_).collect()).collect();
+                if new_in_ != self.nodes[cur].in_ {
+                    changed = true;
+                    // println!("iter {} failed. {} 's in_ changed to {:?}", iter, self.names[cur], new_in_);
+                    self.nodes[cur].in_ = new_in_;
+                }
+
                 if !visited.contains(cur) {
                     for node in self.nodes[cur].pred.iter() {
                         if !visited.contains(node) {
@@ -397,7 +411,7 @@ impl Allocator {
                 }
                 visited.insert(cur);
             }
-            println!("iter: {} ok", iter);
+            // println!("iter: {} ok", iter);
             iter += 1;
         }
     }

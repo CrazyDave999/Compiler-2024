@@ -16,13 +16,13 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
             }
             IRNode::FuncEnd => {
                 let mut cfg = CFG::from(func_inner.clone());
-                println!("{} cfg build ok", func_name);
+                // println!("{} cfg build ok", func_name);
                 cfg.build_dt();
-                println!("{} build dt ok", func_name);
+                // println!("{} build dt ok", func_name);
                 cfg.put_phi();
-                println!("{} put phi ok", func_name);
+                // println!("{} put phi ok", func_name);
                 cfg.eliminate_phi(&mut bb_cnt);
-                println!("{} eliminate phi ok", func_name);
+                // println!("{} eliminate phi ok", func_name);
                 res.extend(cfg.get_ir());
 
                 func_inner.clear();
