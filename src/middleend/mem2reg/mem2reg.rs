@@ -6,13 +6,13 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
     let mut in_func = false;
     let mut func_inner = Vec::new();
     let mut bb_cnt = 0;
-    let mut func_name = String::new();
+    // let mut func_name = String::new();
     for node in ir.iter() {
         match node {
-            IRNode::FuncBegin(_, name, _) => {
+            IRNode::FuncBegin(_, _, _) => {
                 res.push(node.clone());
                 in_func = true;
-                func_name = name.clone();
+                // func_name = name.clone();
             }
             IRNode::FuncEnd => {
                 let mut cfg = CFG::from(func_inner.clone());

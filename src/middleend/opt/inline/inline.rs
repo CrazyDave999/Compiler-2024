@@ -1,11 +1,16 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use crate::middleend::ir::IRNode::Global;
 use super::{IRNode, IRType};
 struct Function {
     pub ty: IRType,
     pub name: String,
     pub args: Vec<(IRType, String)>,
-    pub ch: Vec<IRNode>,
+    pub ch: VecDeque<IRNode>,
     pub call: HashMap<String, usize>, // for dfs calculation of size
+}
+struct GlobalInfo{
+    pub ty: IRType,
+    pub in_func: HashSet<String>,
 }
 impl Function {
     pub fn new(ty: IRType, name: String, args: Vec<(IRType, String)>) -> Self {
@@ -13,7 +18,7 @@ impl Function {
             ty,
             name,
             args,
-            ch: Vec::new(),
+            ch: VecDeque::new(),
             call: HashMap::new(),
         }
     }
@@ -112,7 +117,7 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
             }
             _ => {
                 if in_func {
-                    funcs.last_mut().unwrap().ch.push(inst.clone());
+                    funcs.last_mut().unwrap().ch.push_back(inst.clone());
                     match inst {
                         IRNode::Call(_, _, name, _) => {
                             if builtin.contains(name.as_str()) {
@@ -244,7 +249,7 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
                 // 子树中的函数已经准备好inline，现在消除当前函数中的call
                 let label = format!("%inl.{}", func_cnt);
                 func_cnt += 1;
-                let mut ch = Vec::new();
+                let mut ch = VecDeque::new();
                 let mut need_label = false;
                 for (i, inst) in funcs[rnk].ch.iter().enumerate() {
                     match inst {
@@ -252,27 +257,27 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
                             if inline_func.contains(name) {
                                 ch.extend(funcs[func_rnk[name]].get_inline_ir(res, params, &mut func_cnt));
                             } else {
-                                ch.push(inst.clone());
+                                ch.push_back(inst.clone());
                             }
                         }
                         IRNode::Ret(ty, val) => {
                             if let Some(val) = val {
-                                ch.push(IRNode::Move(ty.clone(), "%#ret".to_string(), val.clone()));
+                                ch.push_back(IRNode::Move(ty.clone(), "%#ret".to_string(), val.clone()));
                             }
                             if i < funcs[rnk].ch.len() - 1 {
                                 need_label = true;
                             }
                             if need_label {
-                                ch.push(IRNode::Br(label.clone()));
+                                ch.push_back(IRNode::Br(label.clone()));
                             }
                         }
                         _ => {
-                            ch.push(inst.clone());
+                            ch.push_back(inst.clone());
                         }
                     }
                 }
                 if need_label {
-                    ch.push(IRNode::Label(label.clone()));
+                    ch.push_back(IRNode::Label(label.clone()));
                 }
                 let _ = std::mem::replace(&mut funcs[rnk].ch, ch);
                 // println!("{} finished", cur);
@@ -284,31 +289,109 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
         if inline_func.contains(name) {
             continue;
         }
-        let mut ch = Vec::new();
+        let mut ch = VecDeque::new();
         for inst in funcs[*rnk].ch.iter() {
             match inst {
                 IRNode::Call(res, _, name, params) => {
                     if inline_func.contains(name) {
                         ch.extend(funcs[func_rnk[name]].get_inline_ir(res, params, &mut func_cnt));
                     } else {
-                        ch.push(inst.clone());
+                        ch.push_back(inst.clone());
                     }
                 }
                 _ => {
-                    ch.push(inst.clone());
+                    ch.push_back(inst.clone());
                 }
             }
         }
         let _ = std::mem::replace(&mut funcs[*rnk].ch, ch);
     }
 
-    // println!("inline");
+    // 函数的数量变少，这时检查全局变量，如果一个全局变量只在一个函数中使用，则将其转换为局部变量，从而参与mem2reg
+    let mut infos = Vec::new();
+    let mut info_rnk = HashMap::new();
+    for inst in pre.iter(){
+        match inst{
+            Global(name,ty, _)=>{
+                let rnk = infos.len();
+                let name = format!("@{}", name);
+                infos.push(GlobalInfo{
+                    ty: ty.clone(),
+                    in_func: HashSet::new(),
+                });
+                info_rnk.insert(name.clone(), rnk);
+            }
+            _=>{}
+        }
+    }
+    for func in funcs.iter(){
+        if !inline_func.contains(&func.name){
+            for inst in func.ch.iter(){
+                match inst {
+                    IRNode::Load(_,_,ptr)=>{
+                        if let Some(rnk) = info_rnk.get(ptr){
+                            infos[*rnk].in_func.insert(func.name.clone());
+                        }
+                    }
+                    IRNode::Store(_,_,ptr)=>{
+                        if let Some(rnk) = info_rnk.get(ptr){
+                            infos[*rnk].in_func.insert(func.name.clone());
+                        }
+                    }
+                    _=>{}
+                }
+            }
+        }
+    }
+    let mut changed_names = HashSet::new();
+    for (name, rnk) in info_rnk.iter(){
+        if infos[*rnk].in_func.len() == 1{
+            changed_names.insert(name.clone());
+        }
+    }
+    let global_name = |name: &String| -> String{
+        format!("%global.{}", name.chars().skip(1).collect::<String>())
+    };
+    for func in funcs.iter_mut(){
+        if !inline_func.contains(&func.name){
+            for inst in func.ch.iter_mut(){
+                match inst{
+                    IRNode::Store(_,_,ptr)=>{
+                        if changed_names.contains(ptr){
+                            *ptr = global_name(ptr);
+                        }
+                    }
+                    IRNode::Load(_,_,ptr)=>{
+                        if changed_names.contains(ptr){
+                            *ptr = global_name(ptr);
+                        }
+                    }
+                    _=>{}
+                }
+            }
+        }
+    }
+    // 插入alloca
+    for (name,rnk) in info_rnk.iter(){
+        if changed_names.contains(name){
+            for func in infos[*rnk].in_func.iter(){
+                funcs[func_rnk[func]].ch.push_front(IRNode::Allocate(
+                    global_name(name),
+                    infos[*rnk].ty.clone(),
+                ));
+            }
+        }
+    }
+    pre.retain(|x| match x{
+        Global(name,_,_) => !changed_names.contains(&format!("@{}",name)),
+        _ => true,
+    });
+
+
     let mut res = Vec::new();
     res.extend(pre);
     for func in funcs.iter() {
-        // println!("iter {}", func.name);
         if !inline_func.contains(&func.name) {
-            // println!("{} not inline {}", func.name, func.ch.len());
             res.extend(func.get_ir());
         }
     }

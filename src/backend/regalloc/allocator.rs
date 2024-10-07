@@ -17,7 +17,6 @@ pub struct Allocator {
     exit: BitSet,
     move_inst: Vec<Instruction>,
     phy_reg_names: Vec<String>,
-    sorted: Vec<usize>,
 
     k: usize,
     phy_regs: BitSet,
@@ -71,7 +70,6 @@ impl Allocator {
             phy_reg_names: Vec::from_iter([
                 "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
             ].iter().map(|&x| x.to_string())),
-            sorted: Vec::new(),
             k: 27,
             phy_regs: BitSet::from_iter(
                 5..32
@@ -369,7 +367,7 @@ impl Allocator {
             }
         }
         let mut changed = true;
-        let mut iter = 0;
+        // let mut iter = 0;
         while changed {
             changed = false;
             let mut queue = VecDeque::new();
@@ -412,7 +410,7 @@ impl Allocator {
                 visited.insert(cur);
             }
             // println!("iter: {} ok", iter);
-            iter += 1;
+            // iter += 1;
         }
     }
 
