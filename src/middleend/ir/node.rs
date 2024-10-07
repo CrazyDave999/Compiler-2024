@@ -42,61 +42,61 @@ impl IRNode {
             _ => false
         }
     }
-    pub fn alloc_get_use_mut(&mut self) -> HashSet<&mut String> {
+    pub fn alloc_get_use_mut(&mut self) -> Vec<&mut String> {
         match self {
             IRNode::Binary(_, _, _, lhs, rhs) => {
-                let mut set = HashSet::new();
-                set.insert(lhs);
-                set.insert(rhs);
-                set
+                let mut vec = Vec::new();
+                vec.push(lhs);
+                vec.push(rhs);
+                vec
             }
             IRNode::BrCond(cond, _, _) => {
-                let mut set = HashSet::new();
-                set.insert(cond);
-                set
+                let mut vec = Vec::new();
+                vec.push(cond);
+                vec
             }
             IRNode::Load(_, _, ptr) => {
-                let mut set = HashSet::new();
-                set.insert(ptr);
-                set
+                let mut vec = Vec::new();
+                vec.push(ptr);
+                vec
             }
             IRNode::Store(_, val, ptr) => {
-                let mut set = HashSet::new();
-                set.insert(val);
-                set.insert(ptr);
-                set
+                let mut vec = Vec::new();
+                vec.push(val);
+                vec.push(ptr);
+                vec
             }
             IRNode::GetElementPtr(_, _, ptr, indexes) => {
-                let mut set = HashSet::new();
-                set.insert(ptr);
+                let mut vec = Vec::new();
+                vec.push(ptr);
                 for (_, idx) in indexes {
-                    set.insert(idx);
+                    vec.push(idx);
                 }
-                set
+                vec
             }
             IRNode::ICMP(_, cond, _, op1, op2) => {
-                let mut set = HashSet::new();
-                set.insert(cond);
-                set.insert(op1);
-                set.insert(op2);
-                set
+                let mut vec = Vec::new();
+                vec.push(cond);
+                vec.push(op1);
+                vec.push(op2);
+                vec
             }
             IRNode::Move(_, _, rs) => {
-                let mut set = HashSet::new();
-                set.insert(rs);
-                set
+                let mut vec = Vec::new();
+                vec.push(rs);
+                vec
             }
             IRNode::SpillStore(_, tmp, _) => {
-                let mut set = HashSet::new();
-                set.insert(tmp);
-                set
+                let mut vec = Vec::new();
+                vec.push(tmp);
+                vec
             }
             IRNode::ArgStore(_, rs, _) => {
-                let mut set = HashSet::new();
-                set.insert(rs);
-                set
+                let mut vec = Vec::new();
+                vec.push(rs);
+                vec
             }
-            _ => HashSet::new()
+            _ => Vec::new()
         }.into_iter().filter(|x| {
             x.chars().next().unwrap() == '%'
         }).collect()
@@ -335,6 +335,11 @@ impl IRNode {
                 set
             }
             IRNode::Call(Some(res), _, _, _) => {
+                let mut set = HashSet::new();
+                set.insert(res);
+                set
+            }
+            IRNode::Allocate(res, _) => {
                 let mut set = HashSet::new();
                 set.insert(res);
                 set

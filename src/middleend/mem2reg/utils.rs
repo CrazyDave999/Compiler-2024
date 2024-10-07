@@ -345,6 +345,16 @@ impl CFG {
                                 }
                             }
                         }
+                        IRNode::Move(_, rd, rs)=>{
+                            if let Some(new_val) = rep.get(rs) {
+                                *rs = new_val.clone();
+                                changed = true;
+                            }
+                            if let Some(new_val) = rep.get(rd) {
+                                *rd = new_val.clone();
+                                changed = true;
+                            }
+                        }
                         _ => {}
                     }
                 }

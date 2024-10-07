@@ -14,7 +14,7 @@ use frontend::semantic;
 pub mod middleend;
 use middleend::ir;
 use middleend::mem2reg;
-use middleend::opt;
+use middleend::opt::inline;
 pub mod backend;
 
 use backend::codegen;
@@ -184,19 +184,19 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                     ir::print_ir(&ir_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
                     println!("ir_build ok");
 
-                    let mem2reg_nodes = mem2reg::pass(ir_nodes);
+                    let inline_nodes = inline::pass(ir_nodes);
+
+                    let mut file = File::create("inline.ll")?;
+                    ir::print_ir(&inline_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+                    println!("inline ok");
+
+                    let mem2reg_nodes = mem2reg::pass(inline_nodes);
 
                     let mut file = File::create("mem2reg.ll")?;
                     ir::print_ir(&mem2reg_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
                     println!("mem2reg ok");
 
-                    let opt_nodes = opt::pass(mem2reg_nodes);
-
-                    let mut file = File::create("opt.ll")?;
-                    ir::print_ir(&opt_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
-                    println!("opt ok");
-
-                    let alloc = regalloc::pass(opt_nodes);
+                    let alloc = regalloc::pass(mem2reg_nodes);
 
                     let mut file = File::create("regalloc.ll")?;
                     ir::print_ir(&alloc.ir, &mut file).expect("FUCK YOU PRINT_IR!");
@@ -240,9 +240,9 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
             match semantic::check(&mut ast) {
                 Ok(_) => {
                     let ir_nodes = ir::build_ir(&ast);
-                    let mem2reg_nodes = mem2reg::pass(ir_nodes);
-                    let opt_nodes = opt::pass(mem2reg_nodes);
-                    let alloc = regalloc::pass(opt_nodes);
+                    let inline_nodes = inline::pass(ir_nodes);
+                    let mem2reg_nodes = mem2reg::pass(inline_nodes);
+                    let alloc = regalloc::pass(mem2reg_nodes);
                     match codegen::build_asm(alloc) {
                         Ok(asm_nodes) => {
                             let builtin = fs::read_to_string("builtin1.s").unwrap();
