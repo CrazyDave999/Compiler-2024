@@ -569,6 +569,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     // let last_label = ctx.last_label.clone();
                     let land_cnt = ctx.generate_land();
                     let land_true_label = format!("land.true.{}", land_cnt);
+                    let land_false_label = format!("land.false.{}", land_cnt);
                     let land_end_label = format!("land.end.{}", land_cnt);
                     let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
 
@@ -587,10 +588,16 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ctx.insert_statement(IRNode::BrCond(
                         lhs_ir_name.clone(),
                         land_true_label.clone(),
-                        land_end_label.clone(),
+                        land_false_label.clone(),
                     ));
                     ctx.insert_statement(IRNode::Label(land_true_label.clone()));
                     ctx.last_label = land_true_label.clone();
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        "1".to_string(),
+                        res_name.clone(),
+                    ));
+
                     let rhs_info = dfs(rhs, ctx);
                     let rhs_ir_name = rhs_info.get_right_ir_name(ctx);
 
@@ -605,6 +612,15 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         land_end_label.clone(),
                     ));
 
+                    ctx.insert_statement(IRNode::Label(land_false_label.clone()));
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        "0".to_string(),
+                        res_name.clone(),
+                    ));
+                    ctx.insert_statement(IRNode::Br(
+                        land_end_label.clone(),
+                    ));
                     ctx.insert_statement(IRNode::Label(land_end_label.clone()));
 
                     // ctx.insert_statement(IRNode::Phi(
@@ -627,6 +643,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 "||" => {
                     // let last_label = ctx.last_label.clone();
                     let lor_cnt = ctx.generate_lor();
+                    let lor_true_label = format!("lor.true.{}", lor_cnt);
                     let lor_false_label = format!("lor.false.{}", lor_cnt);
                     let lor_end_label = format!("lor.end.{}", lor_cnt);
                     let lhs_ir_name = lhs_info.get_right_ir_name(ctx);
@@ -645,11 +662,25 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
 
                     ctx.insert_statement(IRNode::BrCond(
                         lhs_ir_name.clone(),
-                        lor_end_label.clone(),
+                        lor_true_label.clone(),
                         lor_false_label.clone(),
+                    ));
+                    ctx.insert_statement(IRNode::Label(lor_true_label.clone()));
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        "1".to_string(),
+                        res_name.clone(),
+                    ));
+                    ctx.insert_statement(IRNode::Br(
+                        lor_end_label.clone(),
                     ));
                     ctx.insert_statement(IRNode::Label(lor_false_label.clone()));
                     ctx.last_label = lor_false_label.clone();
+                    ctx.insert_statement(IRNode::Store(
+                        IRType::i1(),
+                        "0".to_string(),
+                        res_name.clone(),
+                    ));
                     let rhs_info = dfs(rhs, ctx);
                     let rhs_ir_name = rhs_info.get_right_ir_name(ctx);
 

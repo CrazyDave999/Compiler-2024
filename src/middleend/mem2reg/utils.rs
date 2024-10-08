@@ -96,17 +96,6 @@ impl CFG {
             cfg.nodes[v].pred.insert(u);
         }
 
-        // 去掉不可达的基本块
-        // for bb in cfg.nodes.iter_mut(){
-        //     if bb.pred.is_empty(){
-        //         let last = bb.ir.last().unwrap().clone();
-        //         bb.ir.clear();
-        //         bb.ir.push(last);
-        //         bb.allocate.clear();
-        //         bb.store.clear();
-        //     }
-        // }
-
         cfg
     }
     pub fn build_dt(&mut self) {

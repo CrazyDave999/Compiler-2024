@@ -14,7 +14,8 @@ use frontend::semantic;
 pub mod middleend;
 use middleend::ir;
 use middleend::mem2reg;
-use middleend::opt::inline;
+use middleend::inline;
+use middleend::dataflow;
 pub mod backend;
 
 use backend::codegen;
@@ -196,7 +197,13 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                     ir::print_ir(&mem2reg_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
                     println!("mem2reg ok");
 
-                    let alloc = regalloc::pass(mem2reg_nodes);
+                    let df_nodes = dataflow::pass(mem2reg_nodes);
+
+                    let mut file = File::create("dataflow.ll")?;
+                    ir::print_ir(&df_nodes, &mut file).expect("FUCK YOU PRINT_IR!");
+                    println!("scp and dce ok");
+
+                    let alloc = regalloc::pass(df_nodes);
 
                     let mut file = File::create("regalloc.ll")?;
                     ir::print_ir(&alloc.ir, &mut file).expect("FUCK YOU PRINT_IR!");
@@ -242,7 +249,8 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
                     let ir_nodes = ir::build_ir(&ast);
                     let inline_nodes = inline::pass(ir_nodes);
                     let mem2reg_nodes = mem2reg::pass(inline_nodes);
-                    let alloc = regalloc::pass(mem2reg_nodes);
+                    let df_nodes = dataflow::pass(mem2reg_nodes);
+                    let alloc = regalloc::pass(df_nodes);
                     match codegen::build_asm(alloc) {
                         Ok(asm_nodes) => {
                             let builtin = fs::read_to_string("builtin1.s").unwrap();

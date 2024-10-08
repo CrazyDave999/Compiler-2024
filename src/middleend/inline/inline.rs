@@ -37,7 +37,7 @@ impl Function {
         }
         let mut rename_map: HashMap<String, String> = HashMap::new();
         for mut inst in self.ch.clone().into_iter() {
-            for use_ in (&mut inst).inline_get_use_mut() {
+            for use_ in (&mut inst).get_use_mut() {
                 if let Some(val) = param_map.get(use_) {
                     *use_ = val.clone();
                 } else {
@@ -45,7 +45,7 @@ impl Function {
                 }
             }
             let mut keep = true; // 如果返回值没有被使用，丢弃move指令
-            for def_ in (&mut inst).inline_get_def_mut() {
+            for def_ in (&mut inst).get_def_mut() {
                 if *def_ == "%#ret" {
                     if let Some(res) = res{
                         *def_ = res.clone();

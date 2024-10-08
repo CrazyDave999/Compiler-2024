@@ -163,32 +163,32 @@ impl Allocator {
         );
 
         // 去除一些只有def没有use的寄存器对应的指令
-        let mut changed = true;
-        while changed {
-            changed = false;
-            let mut all_use = HashSet::new();
-            for bb in res.nodes.iter() {
-                for inst in bb.ch.iter() {
-                    all_use.extend(inst.ir_.alloc_get_use().into_iter());
-                }
-            }
-            for bb in res.nodes.iter_mut() {
-                bb.ch.retain(|inst| {
-                    let def = inst.ir_.alloc_get_def();
-                    if def.is_empty() {
-                        true
-                    } else {
-                        for x in def.iter() {
-                            if all_use.contains(x) || res.virtual_regs.contains(x) {
-                                return true;
-                            }
-                        }
-                        changed = true;
-                        false
-                    }
-                });
-            }
-        }
+        // let mut changed = true;
+        // while changed {
+        //     changed = false;
+        //     let mut all_use = HashSet::new();
+        //     for bb in res.nodes.iter() {
+        //         for inst in bb.ch.iter() {
+        //             all_use.extend(inst.ir_.alloc_get_use().into_iter());
+        //         }
+        //     }
+        //     for bb in res.nodes.iter_mut() {
+        //         bb.ch.retain(|inst| {
+        //             let def = inst.ir_.alloc_get_def();
+        //             if def.is_empty() {
+        //                 true
+        //             } else {
+        //                 for x in def.iter() {
+        //                     if all_use.contains(x) || res.virtual_regs.contains(x) {
+        //                         return true;
+        //                     }
+        //                 }
+        //                 changed = true;
+        //                 false
+        //             }
+        //         });
+        //     }
+        // }
 
 
         // 给虚拟寄存器编号，给move指令编号
@@ -231,13 +231,7 @@ impl Allocator {
         }
         res.initial = res.initial.difference(&res.pre_colored).collect();
 
-        // topological sort
-        // let mut marked = BitSet::new();
-        // let mut stk = Vec::new();
-        // let mut stat = Vec::new();
-        // stat.resize(res.nodes.len(), 0usize);
-        // for i in
-
+        res.live_analysis();
         res
     }
     fn reset(&mut self) {
@@ -278,7 +272,7 @@ impl Allocator {
         // println!("#####main#####");
         self.reset();
         // println!("live_analysis");
-        self.live_analysis();
+
         // println!("build");
         self.build();
         // println!("make_work_list");
