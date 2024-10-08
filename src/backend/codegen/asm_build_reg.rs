@@ -302,9 +302,9 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     Err(_) => {
                                         match rs.chars().nth(0).unwrap() {
                                             '%' => {
-                                                if color[rd] != *color.get(rs).unwrap_or(&"zero".to_string()) {
+                                                if *color.get(rd).unwrap_or(&"zero".to_string()) != *color.get(rs).unwrap_or(&"zero".to_string()) {
                                                     asm.push(ASMNode::Move(
-                                                        color[rd].clone(),
+                                                        color.get(rd).unwrap_or(&"zero".to_string()).clone(),
                                                         color.get(rs).unwrap_or(&"zero".to_string()).clone(),
                                                     ));
                                                 }
