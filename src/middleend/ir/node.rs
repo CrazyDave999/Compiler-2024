@@ -466,14 +466,9 @@ impl IRNode {
                 if let (Ok(lhs), Ok(rhs)) = (lhs.parse::<i32>(), rhs.parse::<i32>()) {
                     match op.as_str() {
                         "add" => lhs.checked_add(rhs),
-                        "sub" => Some(lhs - rhs),
-                        "mul" => Some(lhs * rhs),
-                        "sdiv" =>
-                            if rhs == 0 {
-                                None
-                            } else {
-                                Some(lhs / rhs)
-                            },
+                        "sub" => lhs.checked_sub(rhs),
+                        "mul" => lhs.checked_mul(rhs),
+                        "sdiv" =>lhs.checked_div(rhs),
                         "srem" => Some(lhs % rhs),
                         "shl" => Some(lhs << rhs),
                         "ashr" => Some(lhs >> rhs),
