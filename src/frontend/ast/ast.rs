@@ -223,17 +223,26 @@ fn visit_or_test(pair: Pair<Rule>) -> ASTNode {
         let rhs = visit_and_test(inner_pair);
         match &lhs {
             ASTNode::Bool(b1, _) => {
-                match &rhs {
-                    ASTNode::Bool(b2, _) => {
-                        lhs = ASTNode::Bool(*b1 || *b2, span);
-                        continue;
-                    }
-                    _ => {}
+                if *b1{
+                    return lhs;
                 }
+                lhs = rhs;
             }
-            _ => {}
+            _ => {
+                match &rhs{
+                    ASTNode::Bool(b, _)=>{
+                        if *b{
+                            lhs = ASTNode::BinaryExpr("||", Box::new(lhs), Box::new(rhs), span);
+                            return lhs;
+                        }else{
+                            continue;
+                        }
+                    }
+                    _=>{}
+                }
+                lhs = ASTNode::BinaryExpr("||", Box::new(lhs), Box::new(rhs), span);
+            }
         }
-        lhs = ASTNode::BinaryExpr("||", Box::new(lhs), Box::new(rhs), span);
     }
     lhs
 }
@@ -245,17 +254,26 @@ fn visit_and_test(pair: Pair<Rule>) -> ASTNode {
         let rhs = visit_bit_or_test(inner_pair);
         match &lhs {
             ASTNode::Bool(b1, _) => {
-                match &rhs {
-                    ASTNode::Bool(b2, _) => {
-                        lhs = ASTNode::Bool(*b1 && *b2, span);
-                        continue;
-                    }
-                    _ => {}
+                if !*b1{
+                    return lhs;
                 }
+                lhs = rhs;
             }
-            _ => {}
+            _ => {
+                match &rhs{
+                    ASTNode::Bool(b, _)=>{
+                        if !*b{
+                            lhs = ASTNode::BinaryExpr("&&", Box::new(lhs), Box::new(rhs), span);
+                            return lhs;
+                        }else{
+                            continue;
+                        }
+                    }
+                    _=>{}
+                }
+                lhs = ASTNode::BinaryExpr("&&", Box::new(lhs), Box::new(rhs), span);
+            }
         }
-        lhs = ASTNode::BinaryExpr("&&", Box::new(lhs), Box::new(rhs), span);
     }
     lhs
 }
@@ -361,6 +379,21 @@ fn visit_equal_test(pair: Pair<Rule>) -> ASTNode {
                     _ => {}
                 }
             }
+            ASTNode::Ident(n1,_,_,_,_,_)=>{
+                match &rhs{
+                    ASTNode::Ident(n2,_,_,_,_,_)=>{
+                        if *n1 == *n2{
+                            if op == "=="{
+                                lhs = ASTNode::Bool(true, span);
+                            }else{
+                                lhs = ASTNode::Bool(false, span);
+                            }
+                            continue;
+                        }
+                    }
+                    _=>{}
+                }
+            }
             _ => {}
         }
         lhs = ASTNode::BinaryExpr(op, Box::new(lhs), Box::new(rhs), span);
@@ -388,6 +421,23 @@ fn visit_comp_test(pair: Pair<Rule>) -> ASTNode {
                         continue;
                     }
                     _ => {}
+                }
+            }
+            ASTNode::Ident(n1,_,_,_,_,_)=>{
+                match &rhs{
+                    ASTNode::Ident(n2,_,_,_,_,_)=>{
+                        if *n1 == *n2{
+                            match op{
+                                "<=" => lhs = ASTNode::Bool(true, span),
+                                ">=" => lhs = ASTNode::Bool(true, span),
+                                "<" => lhs = ASTNode::Bool(false, span),
+                                ">" => lhs = ASTNode::Bool(false, span),
+                                _=> unreachable!()
+                            }
+                            continue;
+                        }
+                    }
+                    _=>{}
                 }
             }
             _ => {}

@@ -26,7 +26,7 @@ pub fn pass(ir: Vec<IRNode>) -> AllocResult {
                         func_inner.push(IRNode::ArgLoad(ty.clone(), name.clone(), (i as i32 - a_num) * 4));
                     }
                 }
-                println!("### regalloc: {} ###", name);
+                // println!("### regalloc: {} ###", name);
             }
             IRNode::FuncEnd => {
                 let mut alloc = Allocator::from(func_inner.clone());

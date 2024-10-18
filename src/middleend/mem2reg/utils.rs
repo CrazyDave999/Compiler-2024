@@ -104,6 +104,8 @@ impl CFG {
         for bb in self.nodes.iter_mut() {
             bb.dom.extend(0..len);
         }
+        // 计算逆后序
+
         let mut changed = true;
         // let mut iter = 0;
         while changed {
@@ -138,6 +140,7 @@ impl CFG {
             // println!("iter: {}", iter);
             // iter += 1;
         }
+        // println!("calculate dom ok");
 
         // step 2: calculate the immediate dominator(IDom(n).i_dom contains n)
         for n in 0..self.nodes.len() {
@@ -147,6 +150,7 @@ impl CFG {
                 self.nodes[i_dom_of_n].i_dom.insert(n);
             }
         }
+        // println!("calculate idom ok");
 
         // step 3: calculate the dominance frontier(DF(n))
         for n in 0..self.nodes.len() {
@@ -165,7 +169,10 @@ impl CFG {
                 self.nodes[x].df.insert(n);
             }
         }
+        // println!("calculate df ok");
     }
+
+
     pub fn put_phi(&mut self) {
         let mut allocated: Vec<(String, IRType)> = Vec::new();
         for bb in self.nodes.iter() {
@@ -201,6 +208,7 @@ impl CFG {
                 }
             }
         }
+        // println!("put phi. phi reserve ok");
         // dfs write phi: write back the parameters of phi instructions
         let mut rep = HashMap::new();
         for (var, _) in allocated.iter() {
@@ -250,11 +258,12 @@ impl CFG {
                     }
                 } else {
                     bb_stk.pop();
-                    bb_stat[cur] = 2;
+                    // bb_stat[cur] = 2;
                     stk.truncate(cur_stk_len[cur]);
                 }
             }
         }
+        // println!("put phi. write parameters ok");
         // rename
         let mut changed = true;
         while changed {
@@ -334,7 +343,7 @@ impl CFG {
                                 }
                             }
                         }
-                        IRNode::Move(_, rd, rs)=>{
+                        IRNode::Move(_, rd, rs) => {
                             if let Some(new_val) = rep.get(rs) {
                                 *rs = new_val.clone();
                                 changed = true;
@@ -359,6 +368,7 @@ impl CFG {
                 }
             }
         }
+        // println!("put phi. rename ok");
         // supply phi
         let names = self.nodes.iter().map(|bb| bb.name.clone()).collect::<Vec<_>>();
         for bb in self.nodes.iter_mut() {
@@ -385,6 +395,7 @@ impl CFG {
                 }
             }
         }
+        // println!("put phi. supply phi ok");
         self.allocated_vars = allocated.iter().map(|(name, _)| name.clone()).collect();
     }
 
