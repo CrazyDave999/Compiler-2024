@@ -1,10 +1,8 @@
-#[derive(Debug)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Type<'a> {
     pub name: &'a str,
     pub dim: i32,
 }
-
 
 impl<'a> PartialEq for Type<'a> {
     fn eq(&self, other: &Self) -> bool {
@@ -17,27 +15,39 @@ impl<'a> Type<'a> {
         self.dim == 0 && (self.name == "int" || self.name == "bool" || self.name == "string")
     }
     pub fn int() -> Self {
-        Type { name: "int", dim: 0 }
+        Type {
+            name: "int",
+            dim: 0,
+        }
     }
 
     pub fn is_int(&self) -> bool {
         self.name == "int" && self.dim == 0
     }
     pub fn bool() -> Self {
-        Type { name: "bool", dim: 0 }
+        Type {
+            name: "bool",
+            dim: 0,
+        }
     }
 
     pub fn is_bool(&self) -> bool {
         self.name == "bool" && self.dim == 0
     }
     pub fn string() -> Self {
-        Type { name: "string", dim: 0 }
+        Type {
+            name: "string",
+            dim: 0,
+        }
     }
     pub fn is_string(&self) -> bool {
         self.name == "string" && self.dim == 0
     }
     pub fn void() -> Self {
-        Type { name: "void", dim: 0 }
+        Type {
+            name: "void",
+            dim: 0,
+        }
     }
 
     pub fn is_void(&self) -> bool {
@@ -45,7 +55,10 @@ impl<'a> Type<'a> {
     }
 
     pub fn null() -> Self {
-        Type { name: "null", dim: 0 }
+        Type {
+            name: "null",
+            dim: 0,
+        }
     }
 
     pub fn is_null(&self) -> bool {
@@ -53,13 +66,22 @@ impl<'a> Type<'a> {
     }
 
     pub fn func() -> Self {
-        Type { name: "#FUNC#", dim: 0 }
+        Type {
+            name: "#FUNC#",
+            dim: 0,
+        }
     }
 
     pub fn method() -> Self {
-        Type { name: "#METHOD#", dim: 0 }
+        Type {
+            name: "#METHOD#",
+            dim: 0,
+        }
     }
     pub fn method_size() -> Self {
-        Type { name: "#METHOD_SIZE#", dim: 0 }
+        Type {
+            name: "#METHOD_SIZE#",
+            dim: 0,
+        }
     }
 }

@@ -1,10 +1,9 @@
-use std::collections::HashMap;
-use pest::Span;
+use super::scope::{Member, Scope, ScopeType};
+use super::utils::{Context, ExprInfo};
 use super::ASTNode;
 use super::Type;
-use super::utils::{ExprInfo, Context};
-use super::scope::{Scope, ScopeType, Member};
-
+use pest::Span;
+use std::collections::HashMap;
 
 pub fn check<'a>(ast: &'a mut ASTNode) -> Result<(), (&'static str, Span<'a>)> {
     let mut scope = Scope::new();
@@ -13,7 +12,11 @@ pub fn check<'a>(ast: &'a mut ASTNode) -> Result<(), (&'static str, Span<'a>)> {
     Ok(())
 }
 
-fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) -> Result<ExprInfo<'a>, (&'static str, Span<'a>)> {
+fn dfs<'a>(
+    ast: &mut ASTNode<'a>,
+    scope: &mut Scope<'a>,
+    ctx: &mut Context<'a>,
+) -> Result<ExprInfo<'a>, (&'static str, Span<'a>)> {
     match ast {
         ASTNode::Root(ch, sp) => {
             // 先收集类名
@@ -45,7 +48,10 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                                 return Err(("Invalid Type", sp.clone()));
                             }
                             if !args.is_empty() {
-                                return Err(("Main function should have no arguments.", sp.clone()));
+                                return Err((
+                                    "Main function should have no arguments.",
+                                    sp.clone(),
+                                ));
                             }
                         }
 
@@ -120,7 +126,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
 
                                     members.insert(*name, Member::Func(ty.clone(), my_args));
                                 }
-                                _ => { return Err(("Invalid Member", sp.clone())) }
+                                _ => return Err(("Invalid Member", sp.clone())),
                             }
                         }
                         scope.insert_class(name, members);
@@ -246,17 +252,16 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
             scope.pop();
             Ok(ExprInfo::void())
         }
-        ASTNode::ThisExpr(sp) => {
-            match scope.get_class_name() {
-                Some(name) => {
-                    Ok(ExprInfo::normal_var(name))
-                }
-                None => return Err(("Invalid Identifier", sp.clone()))
-            }
-        }
+        ASTNode::ThisExpr(sp) => match scope.get_class_name() {
+            Some(name) => Ok(ExprInfo::normal_var(name)),
+            None => return Err(("Invalid Identifier", sp.clone())),
+        },
         ASTNode::ArrayInit(name, sizes, op, sp) => {
             if let Some(_) = scope.find_class(name) {
-                let my_type = Type { name, dim: sizes.len() as i32 };
+                let my_type = Type {
+                    name,
+                    dim: sizes.len() as i32,
+                };
 
                 for node in sizes {
                     if let Some(expr) = node {
@@ -310,7 +315,8 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                 }
                 if *name == "==" || *name == "!=" {
                     return if (!lhs_info.ty.is_primitive() && rhs_info.ty.is_null())
-                        || (!rhs_info.ty.is_primitive() && lhs_info.ty.is_null()) {
+                        || (!rhs_info.ty.is_primitive() && lhs_info.ty.is_null())
+                    {
                         Ok(ExprInfo::normal_var("bool"))
                     } else {
                         Err(("Type Mismatch", sp.clone()))
@@ -347,9 +353,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                         return Err(("Invalid Type", sp.clone()));
                     }
                 }
-                "==" | "!=" => {
-                    Ok(ExprInfo::normal_var("bool"))
-                }
+                "==" | "!=" => Ok(ExprInfo::normal_var("bool")),
                 "&&" | "||" => {
                     if lhs_info.ty.is_bool() {
                         Ok(ExprInfo::normal_var("bool"))
@@ -371,7 +375,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                         return Err(("Invalid Type", sp.clone()));
                     }
                 }
-                _ => { return Err(("Invalid Identifier", sp.clone())) }
+                _ => return Err(("Invalid Identifier", sp.clone())),
             }
         }
         ASTNode::UnitaryExpr(name, rhs, sp) => {
@@ -403,7 +407,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                         Err(("Invalid Type", sp.clone()))
                     }
                 }
-                _ => { Err(("Invalid Identifier", sp.clone())) }
+                _ => Err(("Invalid Identifier", sp.clone())),
             };
         }
         ASTNode::TernaryExpr(cond, expr1, expr2, sp) => {
@@ -512,7 +516,6 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                 return Err(("Undefined Identifier", sp.clone()));
             }
 
-
             let (ret_ty_, args) = lhs_info.func.unwrap();
 
             if args.len() != params.len() {
@@ -596,18 +599,10 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
             }
             Ok(ExprInfo::void())
         }
-        ASTNode::NULL(_) => {
-            Ok(ExprInfo::normal_var("null"))
-        }
-        ASTNode::Int(_, _) => {
-            Ok(ExprInfo::normal_var("int"))
-        }
-        ASTNode::Str(_, _) => {
-            Ok(ExprInfo::normal_var("string"))
-        }
-        ASTNode::Bool(_, _) => {
-            Ok(ExprInfo::normal_var("bool"))
-        }
+        ASTNode::NULL(_) => Ok(ExprInfo::normal_var("null")),
+        ASTNode::Int(_, _) => Ok(ExprInfo::normal_var("int")),
+        ASTNode::Str(_, _) => Ok(ExprInfo::normal_var("string")),
+        ASTNode::Bool(_, _) => Ok(ExprInfo::normal_var("bool")),
         ASTNode::ArrConst(ch, sp) => {
             let mut my_type_op = None;
             for node in ch {
@@ -645,7 +640,7 @@ fn dfs<'a>(ast: &mut ASTNode<'a>, scope: &mut Scope<'a>, ctx: &mut Context<'a>) 
                 }
                 match info.ty.name {
                     "int" | "string" | "bool" => {}
-                    _ => return Err(("Invalid Type", sp.clone()))
+                    _ => return Err(("Invalid Type", sp.clone())),
                 }
             }
             Ok(ExprInfo::normal_var("string"))

@@ -1,9 +1,9 @@
-use std::cmp::{max};
-use std::collections::HashMap;
-use crate::middleend::ir::IRType;
 use super::ASMNode;
 use super::AllocResult;
 use super::IRNode;
+use crate::middleend::ir::IRType;
+use std::cmp::max;
+use std::collections::HashMap;
 
 // 考虑t0,t1用作addi等操作临时变量，虚拟寄存器不能分配到t0，t1
 // 前面的mem2reg和regalloc应该保证所有普通指令的操作数是数字，被染色的虚拟寄存器，或全局变量
@@ -48,7 +48,9 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                         IRNode::CallerProtect(_, args) => {
                             max_caller_protect = max(max_caller_protect, args.len() as i32 * 4);
                         }
-                        IRNode::FuncEnd => { break; }
+                        IRNode::FuncEnd => {
+                            break;
+                        }
                         _ => {}
                     }
                 }
@@ -86,17 +88,21 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                         IRNode::Label(label) => {
                             asm.push(ASMNode::Label(label.clone()));
                         }
-                        IRNode::Load(res, ty, ptr) => {
-                            match ptr.chars().nth(0).unwrap() {
-                                '%' => {
-                                    load(ty.size(), &color[res], 0, &color.get(ptr).unwrap_or(&"zero".to_string()), &mut asm);
-                                }
-                                '@' => {
-                                    load_global(&color[res], &ptr[1..].to_string(), ty, &mut asm);
-                                }
-                                _ => unreachable!()
+                        IRNode::Load(res, ty, ptr) => match ptr.chars().nth(0).unwrap() {
+                            '%' => {
+                                load(
+                                    ty.size(),
+                                    &color[res],
+                                    0,
+                                    &color.get(ptr).unwrap_or(&"zero".to_string()),
+                                    &mut asm,
+                                );
                             }
-                        }
+                            '@' => {
+                                load_global(&color[res], &ptr[1..].to_string(), ty, &mut asm);
+                            }
+                            _ => unreachable!(),
+                        },
                         IRNode::Store(ty, val, ptr) => {
                             let val_reg = get_val(val, &"gp".to_string(), &color, &mut asm);
                             match ptr.chars().nth(0).unwrap() {
@@ -104,29 +110,39 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     store(ty.size(), &val_reg, 0, &color[ptr], &mut asm);
                                 }
                                 '@' => {
-                                    store_global(&val_reg, &"tp".to_string(), &ptr[1..].to_string(), ty, &mut asm);
+                                    store_global(
+                                        &val_reg,
+                                        &"tp".to_string(),
+                                        &ptr[1..].to_string(),
+                                        ty,
+                                        &mut asm,
+                                    );
                                 }
-                                _ => unreachable!()
+                                _ => unreachable!(),
                             }
                         }
                         IRNode::GetElementPtr(res, ty, ptr, indexes) => {
                             let ptr_reg = match ptr.chars().nth(0).unwrap() {
                                 '%' => color[ptr].clone(),
                                 '@' => {
-                                    load_global(&"gp".to_string(), &ptr[1..].to_string(), &IRType::PTR(Box::from(ty.clone())), &mut asm);
+                                    load_global(
+                                        &"gp".to_string(),
+                                        &ptr[1..].to_string(),
+                                        &IRType::PTR(Box::from(ty.clone())),
+                                        &mut asm,
+                                    );
                                     "gp".to_string()
                                 }
-                                _ => {
-                                    "zero".to_string()
-                                }
+                                _ => "zero".to_string(),
                             };
                             let first_ind = &indexes[0];
-                            match  first_ind.1.parse::<i32>(){
-                                Ok(val)=>{
-                                    addi(&color[res], &ptr_reg, val<<2, &mut asm);
+                            match first_ind.1.parse::<i32>() {
+                                Ok(val) => {
+                                    addi(&color[res], &ptr_reg, val << 2, &mut asm);
                                 }
-                                Err(_)=>{
-                                    let first_reg = get_val(&first_ind.1, &"tp".to_string(), &color, &mut asm);
+                                Err(_) => {
+                                    let first_reg =
+                                        get_val(&first_ind.1, &"tp".to_string(), &color, &mut asm);
                                     asm.push(ASMNode::ArithI(
                                         "slli".to_string(),
                                         "tp".to_string(),
@@ -144,12 +160,17 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
 
                             if indexes.len() > 1 {
                                 let second_ind = &indexes[1];
-                                match second_ind.1.parse::<i32>(){
-                                    Ok(val)=>{
-                                        addi(&color[res], &color[res], val<<2, &mut asm);
+                                match second_ind.1.parse::<i32>() {
+                                    Ok(val) => {
+                                        addi(&color[res], &color[res], val << 2, &mut asm);
                                     }
-                                    Err(_)=>{
-                                        let second_reg = get_val(&second_ind.1, &"tp".to_string(), &color, &mut asm);
+                                    Err(_) => {
+                                        let second_reg = get_val(
+                                            &second_ind.1,
+                                            &"tp".to_string(),
+                                            &color,
+                                            &mut asm,
+                                        );
                                         asm.push(ASMNode::ArithI(
                                             "slli".to_string(),
                                             "tp".to_string(),
@@ -246,7 +267,7 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                         "gp".to_string(),
                                     ));
                                 }
-                                _ => unreachable!()
+                                _ => unreachable!(),
                             }
                         }
                         IRNode::BrCond(cond, label1, label2) => {
@@ -258,19 +279,13 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                 "zero".to_string(),
                                 beq_label.clone(),
                             ));
-                            asm.push(ASMNode::J(
-                                label1.clone(),
-                            ));
+                            asm.push(ASMNode::J(label1.clone()));
                             asm.push(ASMNode::Label(beq_label.clone()));
-                            asm.push(ASMNode::J(
-                                label2.clone()
-                            ));
+                            asm.push(ASMNode::J(label2.clone()));
                             beq_cnt += 1;
                         }
                         IRNode::Br(label) => {
-                            asm.push(ASMNode::J(
-                                label.clone(),
-                            ));
+                            asm.push(ASMNode::J(label.clone()));
                         }
                         IRNode::Call(_, _, name, _) => {
                             asm.push(ASMNode::Call(name.clone()));
@@ -290,7 +305,9 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                             }
                             asm.push(ASMNode::Ret);
                         }
-                        IRNode::FuncEnd => { break; }
+                        IRNode::FuncEnd => {
+                            break;
+                        }
                         IRNode::Move(_, rd, rs) => {
                             if rs == "null" {
                                 addi(&color[rd], &"zero".to_string(), 0, &mut asm);
@@ -299,22 +316,28 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                                     Ok(val) => {
                                         addi(&color[rd], &"zero".to_string(), val, &mut asm);
                                     }
-                                    Err(_) => {
-                                        match rs.chars().nth(0).unwrap() {
-                                            '%' => {
-                                                if *color.get(rd).unwrap_or(&"zero".to_string()) != *color.get(rs).unwrap_or(&"zero".to_string()) {
-                                                    asm.push(ASMNode::Move(
-                                                        color.get(rd).unwrap_or(&"zero".to_string()).clone(),
-                                                        color.get(rs).unwrap_or(&"zero".to_string()).clone(),
-                                                    ));
-                                                }
+                                    Err(_) => match rs.chars().nth(0).unwrap() {
+                                        '%' => {
+                                            if *color.get(rd).unwrap_or(&"zero".to_string())
+                                                != *color.get(rs).unwrap_or(&"zero".to_string())
+                                            {
+                                                asm.push(ASMNode::Move(
+                                                    color
+                                                        .get(rd)
+                                                        .unwrap_or(&"zero".to_string())
+                                                        .clone(),
+                                                    color
+                                                        .get(rs)
+                                                        .unwrap_or(&"zero".to_string())
+                                                        .clone(),
+                                                ));
                                             }
-                                            '@' => {
-                                                get_val(&rs, &color[rd], color, &mut asm);
-                                            }
-                                            _ => unreachable!()
                                         }
-                                    }
+                                        '@' => {
+                                            get_val(&rs, &color[rd], color, &mut asm);
+                                        }
+                                        _ => unreachable!(),
+                                    },
                                 }
                             }
                         }
@@ -328,7 +351,13 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
                             store(ty.size(), &tmp_reg, offset, &"sp".to_string(), &mut asm);
                         }
                         IRNode::ArgLoad(ty, rd, offset) => {
-                            load(ty.size(), &color[rd], *offset + alloc_size, &"sp".to_string(), &mut asm);
+                            load(
+                                ty.size(),
+                                &color[rd],
+                                *offset + alloc_size,
+                                &"sp".to_string(),
+                                &mut asm,
+                            );
                         }
                         IRNode::ArgStore(ty, rs, offset) => {
                             let rs_reg = get_val(rs, &"gp".to_string(), color, &mut asm);
@@ -384,7 +413,12 @@ pub fn build_asm(alloc_res: AllocResult) -> Result<Vec<ASMNode>, String> {
     asm.append(&mut rodata);
     Ok(asm)
 }
-fn get_val(val: &String, tmp_reg: &String, color: &HashMap<String, String>, asm: &mut Vec<ASMNode>) -> String {
+fn get_val(
+    val: &String,
+    tmp_reg: &String,
+    color: &HashMap<String, String>,
+    asm: &mut Vec<ASMNode>,
+) -> String {
     if val == "null" {
         "zero".to_string()
     } else {
@@ -393,34 +427,26 @@ fn get_val(val: &String, tmp_reg: &String, color: &HashMap<String, String>, asm:
                 addi(&tmp_reg, &"zero".to_string(), val, asm);
                 tmp_reg.clone()
             }
-            Err(_) => {
-                match val.chars().nth(0).unwrap() {
-                    '%' => color.get(val).unwrap_or(&"zero".to_string()).clone(),
-                    '@' => {
-                        asm.push(ASMNode::Lui(
-                            tmp_reg.clone(),
-                            format!("%hi({})", &val[1..]),
-                        ));
-                        asm.push(ASMNode::ArithI(
-                            "addi".to_string(),
-                            tmp_reg.clone(),
-                            tmp_reg.clone(),
-                            format!("%lo({})", &val[1..]),
-                        ));
-                        tmp_reg.clone()
-                    }
-                    _ => unreachable!()
+            Err(_) => match val.chars().nth(0).unwrap() {
+                '%' => color.get(val).unwrap_or(&"zero".to_string()).clone(),
+                '@' => {
+                    asm.push(ASMNode::Lui(tmp_reg.clone(), format!("%hi({})", &val[1..])));
+                    asm.push(ASMNode::ArithI(
+                        "addi".to_string(),
+                        tmp_reg.clone(),
+                        tmp_reg.clone(),
+                        format!("%lo({})", &val[1..]),
+                    ));
+                    tmp_reg.clone()
                 }
-            }
+                _ => unreachable!(),
+            },
         }
     }
 }
 
 fn load_global(res_reg: &String, name: &String, ty: &IRType, asm: &mut Vec<ASMNode>) {
-    asm.push(ASMNode::Lui(
-        res_reg.clone(),
-        format!("%hi({})", name),
-    ));
+    asm.push(ASMNode::Lui(res_reg.clone(), format!("%hi({})", name)));
     asm.push(ASMNode::Load(
         ty.size(),
         res_reg.clone(),
@@ -428,11 +454,14 @@ fn load_global(res_reg: &String, name: &String, ty: &IRType, asm: &mut Vec<ASMNo
         res_reg.clone(),
     ));
 }
-fn store_global(src_reg: &String, tmp_reg: &String, name: &String, ty: &IRType, asm: &mut Vec<ASMNode>) {
-    asm.push(ASMNode::Lui(
-        tmp_reg.clone(),
-        format!("%hi({})", name),
-    ));
+fn store_global(
+    src_reg: &String,
+    tmp_reg: &String,
+    name: &String,
+    ty: &IRType,
+    asm: &mut Vec<ASMNode>,
+) {
+    asm.push(ASMNode::Lui(tmp_reg.clone(), format!("%hi({})", name)));
     asm.push(ASMNode::Store(
         ty.size(),
         src_reg.clone(),
@@ -456,10 +485,7 @@ fn addi(rd: &str, rs: &str, imm: i32, asm: &mut Vec<ASMNode>) {
             upper += 1;
         }
         if rs == rd {
-            asm.push(ASMNode::Lui(
-                "gp".to_string(),
-                upper.to_string(),
-            ));
+            asm.push(ASMNode::Lui("gp".to_string(), upper.to_string()));
             asm.push(ASMNode::ArithI(
                 "addi".to_string(),
                 "gp".to_string(),
@@ -473,10 +499,7 @@ fn addi(rd: &str, rs: &str, imm: i32, asm: &mut Vec<ASMNode>) {
                 "gp".to_string(),
             ));
         } else {
-            asm.push(ASMNode::Lui(
-                rd.to_string(),
-                upper.to_string(),
-            ));
+            asm.push(ASMNode::Lui(rd.to_string(), upper.to_string()));
             asm.push(ASMNode::ArithI(
                 "addi".to_string(),
                 rd.to_string(),
@@ -515,12 +538,7 @@ fn store(size: i32, rs2: &String, imm: i32, rs1: &String, asm: &mut Vec<ASMNode>
 }
 fn load(size: i32, rd: &String, imm: i32, rs: &String, asm: &mut Vec<ASMNode>) {
     if imm >= -2048 && imm <= 2047 {
-        asm.push(ASMNode::Load(
-            size,
-            rd.clone(),
-            imm.to_string(),
-            rs.clone(),
-        ));
+        asm.push(ASMNode::Load(size, rd.clone(), imm.to_string(), rs.clone()));
     } else {
         addi(&"tp".to_string(), rs, imm, asm);
         asm.push(ASMNode::Load(
@@ -540,12 +558,19 @@ fn sext_12(imm: i32) -> i32 {
     }
 }
 
-fn simple_calc(op: &str, res:&str, lhs: &str, rhs: &str, color: &HashMap<String, String>, asm: &mut Vec<ASMNode>){
-    match lhs.parse::<i32>(){
-        Ok(val1)=>{
-            match rhs.parse::<i32>(){
-                Ok(val2)=>{
-                    if val2==0 && op =="sdiv"{
+fn simple_calc(
+    op: &str,
+    res: &str,
+    lhs: &str,
+    rhs: &str,
+    color: &HashMap<String, String>,
+    asm: &mut Vec<ASMNode>,
+) {
+    match lhs.parse::<i32>() {
+        Ok(val1) => {
+            match rhs.parse::<i32>() {
+                Ok(val2) => {
+                    if val2 == 0 && op == "sdiv" {
                         addi("gp", "zero", val1, asm);
                         addi("tp", "zero", val2, asm);
                         asm.push(ASMNode::Arith(
@@ -554,7 +579,7 @@ fn simple_calc(op: &str, res:&str, lhs: &str, rhs: &str, color: &HashMap<String,
                             "gp".to_string(),
                             "tp".to_string(),
                         ));
-                    }else {
+                    } else {
                         addi(
                             color.get(res).unwrap_or(&"zero".to_string()),
                             "zero",
@@ -569,28 +594,28 @@ fn simple_calc(op: &str, res:&str, lhs: &str, rhs: &str, color: &HashMap<String,
                                 "and" => val1 & val2,
                                 "or" => val1 | val2,
                                 "xor" => val1 ^ val2,
-                                _ => unreachable!()
+                                _ => unreachable!(),
                             },
                             asm,
                         );
                     }
                 }
-                _=>{
+                _ => {
                     // lhs is a number, rhs is a register
-                    match op{
-                        "add"=>addi(
+                    match op {
+                        "add" => addi(
                             color.get(res).unwrap_or(&"zero".to_string()),
                             color[rhs].as_str(),
                             val1,
-                            asm
+                            asm,
                         ),
-                        "and" | "or" | "xor"=>{
-                            if val1>=-2048 && val1<=2047{
-                                let op = match op{
-                                    "and"=>"andi".to_string(),
-                                    "or"=>"ori".to_string(),
-                                    "xor"=>"xori".to_string(),
-                                    _=>unreachable!()
+                        "and" | "or" | "xor" => {
+                            if val1 >= -2048 && val1 <= 2047 {
+                                let op = match op {
+                                    "and" => "andi".to_string(),
+                                    "or" => "ori".to_string(),
+                                    "xor" => "xori".to_string(),
+                                    _ => unreachable!(),
                                 };
                                 asm.push(ASMNode::ArithI(
                                     op,
@@ -598,8 +623,8 @@ fn simple_calc(op: &str, res:&str, lhs: &str, rhs: &str, color: &HashMap<String,
                                     color[rhs].clone(),
                                     val1.to_string(),
                                 ));
-                            }else{
-                                addi(&"tp".to_string(),&"zero".to_string(),val1,asm);
+                            } else {
+                                addi(&"tp".to_string(), &"zero".to_string(), val1, asm);
                                 asm.push(ASMNode::Arith(
                                     op.to_string(),
                                     color.get(res).unwrap_or(&"zero".to_string()).clone(),
@@ -608,15 +633,15 @@ fn simple_calc(op: &str, res:&str, lhs: &str, rhs: &str, color: &HashMap<String,
                                 ));
                             }
                         }
-                        _=>{
+                        _ => {
                             let op = match op {
                                 "sdiv" => "div".to_string(),
                                 "srem" => "rem".to_string(),
                                 "shl" => "sll".to_string(),
                                 "ashr" => "sra".to_string(),
-                                _ => op.to_string()
+                                _ => op.to_string(),
                             };
-                            addi(&"tp".to_string(),&"zero".to_string(),val1,asm);
+                            addi(&"tp".to_string(), &"zero".to_string(), val1, asm);
                             asm.push(ASMNode::Arith(
                                 op,
                                 color.get(res).unwrap_or(&"zero".to_string()).clone(),
@@ -628,90 +653,86 @@ fn simple_calc(op: &str, res:&str, lhs: &str, rhs: &str, color: &HashMap<String,
                 }
             }
         }
-        _=>{
-            match rhs.parse::<i32>(){
-                Ok(val2)=>{
-                    match op{
-                        "add"=>addi(
-                            color.get(res).unwrap_or(&"zero".to_string()),
-                            color[lhs].as_str(),
-                            val2,
-                            asm
-                        ),
-                        "sub"=>addi(
-                            color.get(res).unwrap_or(&"zero".to_string()),
-                            color[lhs].as_str(),
-                            -val2,
-                            asm
-                        ),
-                        "mul" | "sdiv" | "srem" =>{
-                            addi(&"tp".to_string(),&"zero".to_string(),val2,asm);
-                            asm.push(ASMNode::Arith(
-                                match op {
-                                    "mul" => "mul".to_string(),
-                                    "sdiv" => "div".to_string(),
-                                    "srem" => "rem".to_string(),
-                                    _ => unreachable!()
-                                },
-                                color.get(res).unwrap_or(&"zero".to_string()).clone(),
-                                color[lhs].clone(),
-                                "tp".to_string(),
-                            ));
-                        }
-                        "shl" |"ashr" =>{
-                            asm.push(ASMNode::ArithI(
-                                match op{
-                                    "shl"=>"slli".to_string(),
-                                    "ashr"=>"srai".to_string(),
-                                    _=>unreachable!()
-                                },
-                                color.get(res).unwrap_or(&"zero".to_string()).clone(),
-                                color[lhs].clone(),
-                                val2.to_string(),
-                            ));
-                        }
-                        "and" |"or" | "xor"=>{
-                            if val2>=-2048 && val2<=2047{
-                                let op = match op{
-                                    "and"=>"andi".to_string(),
-                                    "or"=>"ori".to_string(),
-                                    "xor"=>"xori".to_string(),
-                                    _=>unreachable!()
-                                };
-                                asm.push(ASMNode::ArithI(
-                                    op,
-                                    color.get(res).unwrap_or(&"zero".to_string()).clone(),
-                                    color[lhs].clone(),
-                                    val2.to_string(),
-                                ));
-                            }else{
-                                addi(&"tp".to_string(),&"zero".to_string(),val2,asm);
-                                asm.push(ASMNode::Arith(
-                                    op.to_string(),
-                                    color.get(res).unwrap_or(&"zero".to_string()).clone(),
-                                    color[lhs].clone(),
-                                    "tp".to_string(),
-                                ));
-                            }
-                        }
-                        _=>unreachable!()
-                    }
-                }
-                _=>{
+        _ => match rhs.parse::<i32>() {
+            Ok(val2) => match op {
+                "add" => addi(
+                    color.get(res).unwrap_or(&"zero".to_string()),
+                    color[lhs].as_str(),
+                    val2,
+                    asm,
+                ),
+                "sub" => addi(
+                    color.get(res).unwrap_or(&"zero".to_string()),
+                    color[lhs].as_str(),
+                    -val2,
+                    asm,
+                ),
+                "mul" | "sdiv" | "srem" => {
+                    addi(&"tp".to_string(), &"zero".to_string(), val2, asm);
                     asm.push(ASMNode::Arith(
                         match op {
+                            "mul" => "mul".to_string(),
                             "sdiv" => "div".to_string(),
                             "srem" => "rem".to_string(),
-                            "shl" => "sll".to_string(),
-                            "ashr" => "sra".to_string(),
-                            _ => op.to_string()
+                            _ => unreachable!(),
                         },
                         color.get(res).unwrap_or(&"zero".to_string()).clone(),
-                        color.get(lhs).unwrap_or(&"zero".to_string()).clone(),
-                        color.get(rhs).unwrap_or(&"zero".to_string()).clone(),
+                        color[lhs].clone(),
+                        "tp".to_string(),
                     ));
                 }
+                "shl" | "ashr" => {
+                    asm.push(ASMNode::ArithI(
+                        match op {
+                            "shl" => "slli".to_string(),
+                            "ashr" => "srai".to_string(),
+                            _ => unreachable!(),
+                        },
+                        color.get(res).unwrap_or(&"zero".to_string()).clone(),
+                        color[lhs].clone(),
+                        val2.to_string(),
+                    ));
+                }
+                "and" | "or" | "xor" => {
+                    if val2 >= -2048 && val2 <= 2047 {
+                        let op = match op {
+                            "and" => "andi".to_string(),
+                            "or" => "ori".to_string(),
+                            "xor" => "xori".to_string(),
+                            _ => unreachable!(),
+                        };
+                        asm.push(ASMNode::ArithI(
+                            op,
+                            color.get(res).unwrap_or(&"zero".to_string()).clone(),
+                            color[lhs].clone(),
+                            val2.to_string(),
+                        ));
+                    } else {
+                        addi(&"tp".to_string(), &"zero".to_string(), val2, asm);
+                        asm.push(ASMNode::Arith(
+                            op.to_string(),
+                            color.get(res).unwrap_or(&"zero".to_string()).clone(),
+                            color[lhs].clone(),
+                            "tp".to_string(),
+                        ));
+                    }
+                }
+                _ => unreachable!(),
+            },
+            _ => {
+                asm.push(ASMNode::Arith(
+                    match op {
+                        "sdiv" => "div".to_string(),
+                        "srem" => "rem".to_string(),
+                        "shl" => "sll".to_string(),
+                        "ashr" => "sra".to_string(),
+                        _ => op.to_string(),
+                    },
+                    color.get(res).unwrap_or(&"zero".to_string()).clone(),
+                    color.get(lhs).unwrap_or(&"zero".to_string()).clone(),
+                    color.get(rhs).unwrap_or(&"zero".to_string()).clone(),
+                ));
             }
-        }
+        },
     }
 }

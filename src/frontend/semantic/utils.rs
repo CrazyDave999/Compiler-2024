@@ -6,9 +6,7 @@ pub struct Context<'a> {
 
 impl Context<'_> {
     pub fn new() -> Self {
-        Context {
-            ret_types: vec![],
-        }
+        Context { ret_types: vec![] }
     }
 }
 
@@ -17,9 +15,9 @@ pub struct ExprInfo<'a> {
     pub ty: Type<'a>,
     pub is_left: bool,
     pub func: Option<(Type<'a>, Vec<Type<'a>>)>, // ret type, args
-    pub idx: i32, // for IR, 不是-1说明是成员
-    pub cnt: i32, // for IR
-    pub is_global: bool, // for IR, 是否是全局变量
+    pub idx: i32,                                // for IR, 不是-1说明是成员
+    pub cnt: i32,                                // for IR
+    pub is_global: bool,                         // for IR, 是否是全局变量
 }
 
 impl<'a> ExprInfo<'a> {

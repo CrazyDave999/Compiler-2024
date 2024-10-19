@@ -2,14 +2,14 @@ use std::fmt::Display;
 
 pub enum ASMNode {
     Store(i32, String, String, String), // sw/sh/sb rs2 imm(rs1)
-    Load(i32, String, String, String), // lw/lh/lb rd imm(rs1)
-    Lui(String, String), // lui rd imm
-    J(String), // j label
+    Load(i32, String, String, String),  // lw/lh/lb rd imm(rs1)
+    Lui(String, String),                // lui rd imm
+    J(String),                          // j label
     Ret,
     Branch(String, String, String, String), // beq/bne rs1, rs2, label
-    Arith(String, String, String, String), // op rd rs1 rs2
+    Arith(String, String, String, String),  // op rd rs1 rs2
     ArithI(String, String, String, String), // op rd rs1 imm
-    Move(String, String), // mv rd rs
+    Move(String, String),                   // mv rd rs
     Label(String),
     Call(String), // call symbol
     Segment(String),
@@ -28,7 +28,7 @@ impl Display for ASMNode {
                     1 => "sb",
                     2 => "sh",
                     4 => "sw",
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 write!(f, "{} {}, {}({})\n", inst, rs2, imm, rs1)
             }
@@ -37,7 +37,7 @@ impl Display for ASMNode {
                     1 => "lb",
                     2 => "lh",
                     4 => "lw",
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 write!(f, "{} {}, {}({})\n", inst, rd, imm, rs1)
             }
@@ -79,7 +79,7 @@ impl Display for ASMNode {
                     1 => "byte",
                     2 => "half",
                     4 => "word",
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 write!(f, ".{} {}\n", name, val)
             }

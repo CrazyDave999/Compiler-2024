@@ -1,21 +1,21 @@
-use std::fs;
+use pest::{Parser, Span};
 use std::env;
+use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::Read;
-use pest::{Parser, Span};
 use std::io::Write;
 
 pub mod frontend;
 use frontend::ast;
-use frontend::visualize;
 use frontend::semantic;
+use frontend::visualize;
 
 pub mod middleend;
+use middleend::dataflow;
+use middleend::inline;
 use middleend::ir;
 use middleend::mem2reg;
-use middleend::inline;
-use middleend::dataflow;
 pub mod backend;
 
 use backend::codegen;
@@ -31,7 +31,7 @@ fn syntax_only_oj() -> Result<(), Box<dyn std::error::Error>> {
 
     match io::stdin().read_to_string(&mut input) {
         Ok(_) => (),
-        Err(e) => fail(&format!("Error reading input: {}", e))
+        Err(e) => fail(&format!("Error reading input: {}", e)),
     }
 
     match ast::MxParser::parse(ast::Rule::file, &input) {
@@ -39,10 +39,10 @@ fn syntax_only_oj() -> Result<(), Box<dyn std::error::Error>> {
             let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
             match semantic::check(&mut ast) {
                 Ok(_) => (),
-                Err(e) => fail(e.0)
+                Err(e) => fail(e.0),
             }
         }
-        Err(_) => fail("Invalid Identifier")
+        Err(_) => fail("Invalid Identifier"),
     }
     Ok(())
 }
@@ -54,10 +54,10 @@ fn syntax_only_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
             let mut ast = ast::build_tree(pairs.into_iter().next().unwrap());
             match semantic::check(&mut ast) {
                 Ok(_) => (),
-                Err(e) => fail(e.0)
+                Err(e) => fail(e.0),
             }
         }
-        Err(_) => fail("Invalid Identifier")
+        Err(_) => fail("Invalid Identifier"),
     }
     Ok(())
 }
@@ -109,7 +109,11 @@ fn print_error_context(source: &str, span: &Span, msg: &str) {
         end - pre_len
     };
 
-    eprintln!("{}{}", " ".repeat(start_col + 6), "^".repeat(end_col - start_col));
+    eprintln!(
+        "{}{}",
+        " ".repeat(start_col + 6),
+        "^".repeat(end_col - start_col)
+    );
 
     eprintln!("{}{}\n", " ".repeat(start_col + 6), msg);
 }
@@ -150,7 +154,7 @@ fn emit_llvm_oj() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = String::new();
     match io::stdin().read_to_string(&mut input) {
         Ok(_) => (),
-        Err(e) => fail(&format!("Error reading input: {}", e))
+        Err(e) => fail(&format!("Error reading input: {}", e)),
     }
     match ast::MxParser::parse(ast::Rule::file, &input) {
         Ok(pairs) => {
@@ -164,10 +168,10 @@ fn emit_llvm_oj() -> Result<(), Box<dyn std::error::Error>> {
                     let mut stdout = io::stdout();
                     ir::print_ir(&opt_nodes, &mut stdout).expect("FUCK YOU PRINT_IR!");
                 }
-                Err(e) => fail(e.0)
+                Err(e) => fail(e.0),
             }
         }
-        Err(_) => fail("Invalid Identifier")
+        Err(_) => fail("Invalid Identifier"),
     }
     Ok(())
 }
@@ -217,9 +221,7 @@ fn asm_test(file: &str) -> Result<(), Box<dyn std::error::Error>> {
                             codegen::print_asm(&asm_nodes, &mut file).expect("FUCK YOU PRINT_ASM!");
                             Ok(())
                         }
-                        Err(msg) => {
-                            Err(Box::new(io::Error::new(io::ErrorKind::Other, msg)))
-                        }
+                        Err(msg) => Err(Box::new(io::Error::new(io::ErrorKind::Other, msg))),
                     }
                 }
                 Err((msg, span)) => {
@@ -239,7 +241,7 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = String::new();
     match io::stdin().read_to_string(&mut input) {
         Ok(_) => (),
-        Err(e) => fail(&format!("Error reading input: {}", e))
+        Err(e) => fail(&format!("Error reading input: {}", e)),
     }
     match ast::MxParser::parse(ast::Rule::file, &input) {
         Ok(pairs) => {
@@ -255,19 +257,19 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(asm_nodes) => {
                             let builtin = fs::read_to_string("builtin1.s").unwrap();
                             write!(io::stdout(), "{}", builtin).unwrap();
-                            codegen::print_asm(&asm_nodes, &mut io::stdout()).expect("FUCK YOU PRINT_ASM!");
+                            codegen::print_asm(&asm_nodes, &mut io::stdout())
+                                .expect("FUCK YOU PRINT_ASM!");
                         }
                         Err(_) => {}
                     }
                 }
-                Err(e) => fail(e.0)
+                Err(e) => fail(e.0),
             }
         }
-        Err(_) => fail("Invalid Identifier")
+        Err(_) => fail("Invalid Identifier"),
     }
     Ok(())
 }
-
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_args: Vec<_> = env::args().collect();
@@ -287,4 +289,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 }
-

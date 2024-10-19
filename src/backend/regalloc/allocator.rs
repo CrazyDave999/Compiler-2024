@@ -1,16 +1,16 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::usize;
-use bit_set::BitSet;
-use crate::middleend::ir::{IRNode, IRType};
+use super::utils::is_reg;
 use super::utils::BasicBlock;
 use super::utils::Instruction;
-use super::utils::is_reg;
+use crate::middleend::ir::{IRNode, IRType};
+use bit_set::BitSet;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::usize;
 
 /*
 color: 0,1,...,31
  */
 pub struct Allocator {
-    names: Vec<String>, // labels
+    names: Vec<String>,     // labels
     nodes: Vec<BasicBlock>, // bb
     virtual_regs: Vec<String>,
     virtual_rnk: HashMap<String, usize>,
@@ -23,7 +23,7 @@ pub struct Allocator {
     // caller_saved_regs: BitSet,
     // callee_saved_regs: BitSet,
     spill_temps: BitSet, // 为溢出变量创建的临时变量
-    spill_vars: BitSet, // 溢出变量的名字
+    spill_vars: BitSet,  // 溢出变量的名字
 
     phy_colors: BitSet,
     caller_saved_colors: BitSet,
@@ -67,28 +67,26 @@ impl Allocator {
             virtual_rnk: HashMap::new(),
             exit: BitSet::new(),
             move_inst: Vec::new(),
-            phy_reg_names: Vec::from_iter([
-                "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
-            ].iter().map(|&x| x.to_string())),
-            k: 27,
-            phy_regs: BitSet::from_iter(
-                5..32
+            phy_reg_names: Vec::from_iter(
+                [
+                    "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2",
+                    "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9",
+                    "s10", "s11", "t3", "t4", "t5", "t6",
+                ]
+                .iter()
+                .map(|&x| x.to_string()),
             ),
+            k: 27,
+            phy_regs: BitSet::from_iter(5..32),
             // caller_saved_regs: BitSet::from_iter(
             //     (5..8).chain(10..18).chain(28..32)
             // ),
             // callee_saved_regs: BitSet::from_iter(
             //     (8..10).chain(18..28)
             // ),
-            phy_colors: BitSet::from_iter(
-                5..32
-            ),
-            caller_saved_colors: BitSet::from_iter(
-                (5..8).chain(10..18).chain(28..32)
-            ),
-            callee_saved_colors: BitSet::from_iter(
-                (8..10).chain(18..28)
-            ),
+            phy_colors: BitSet::from_iter(5..32),
+            caller_saved_colors: BitSet::from_iter((5..8).chain(10..18).chain(28..32)),
+            callee_saved_colors: BitSet::from_iter((8..10).chain(18..28)),
             spill_temps: BitSet::new(),
             spill_vars: BitSet::new(),
             pre_colored: BitSet::new(),
@@ -134,7 +132,6 @@ impl Allocator {
             }
         }
 
-
         let mut cfg_edges = Vec::new();
         for (i, bb) in res.nodes.iter().enumerate() {
             match &bb.ch.last().unwrap().ir_ {
@@ -159,7 +156,13 @@ impl Allocator {
         }
 
         res.virtual_regs.extend(
-            ["%zero", "%ra", "%sp", "%gp", "%tp", "%t0", "%t1", "%t2", "%s0", "%s1", "%a0", "%a1", "%a2", "%a3", "%a4", "%a5", "%a6", "%a7", "%s2", "%s3", "%s4", "%s5", "%s6", "%s7", "%s8", "%s9", "%s10", "%s11", "%t3", "%t4", "%t5", "%t6"].into_iter().map(|x| x.to_string())
+            [
+                "%zero", "%ra", "%sp", "%gp", "%tp", "%t0", "%t1", "%t2", "%s0", "%s1", "%a0",
+                "%a1", "%a2", "%a3", "%a4", "%a5", "%a6", "%a7", "%s2", "%s3", "%s4", "%s5", "%s6",
+                "%s7", "%s8", "%s9", "%s10", "%s11", "%t3", "%t4", "%t5", "%t6",
+            ]
+            .into_iter()
+            .map(|x| x.to_string()),
         );
 
         // 去除一些只有def没有use的寄存器对应的指令
@@ -190,7 +193,6 @@ impl Allocator {
         //     }
         // }
 
-
         // 给虚拟寄存器编号，给move指令编号
 
         for (i, reg) in res.virtual_regs.iter().enumerate() {
@@ -218,7 +220,6 @@ impl Allocator {
                 }
             }
         }
-
 
         res.pre_colored = res.phy_regs.clone();
 
@@ -252,7 +253,8 @@ impl Allocator {
         self.adj_set.clear();
         self.adj_list.resize(self.virtual_regs.len(), BitSet::new());
         self.degree.resize(self.virtual_regs.len(), 0);
-        self.move_list.resize(self.virtual_regs.len(), BitSet::new());
+        self.move_list
+            .resize(self.virtual_regs.len(), BitSet::new());
         self.alias.resize(self.virtual_regs.len(), usize::MAX);
         self.color.resize(self.virtual_regs.len(), usize::MAX);
 
@@ -278,7 +280,11 @@ impl Allocator {
         // println!("make_work_list");
         self.make_work_list();
         // println!("algorithms");
-        while !self.simplify_work_list.is_empty() || !self.work_list_moves.is_empty() || !self.freeze_work_list.is_empty() || !self.spill_work_list.is_empty() {
+        while !self.simplify_work_list.is_empty()
+            || !self.work_list_moves.is_empty()
+            || !self.freeze_work_list.is_empty()
+            || !self.spill_work_list.is_empty()
+        {
             // self.check();
             if !self.simplify_work_list.is_empty() {
                 // println!("simplify");
@@ -435,7 +441,10 @@ impl Allocator {
                         }
                     }
                 }
-                live = inst.use_.union(&live.difference(&inst.def_).collect()).collect();
+                live = inst
+                    .use_
+                    .union(&live.difference(&inst.def_).collect())
+                    .collect();
                 inst.in_ = live.clone();
             }
         }
@@ -472,19 +481,22 @@ impl Allocator {
         self.initial.clear();
     }
     fn adjacent(&self, n: usize) -> BitSet {
-        self.adj_list[n].difference(
-            &BitSet::from_iter(self.select_stack.iter().cloned()).union(
-                &self.coalesced_nodes
-            ).collect()
-        ).collect()
+        self.adj_list[n]
+            .difference(
+                &BitSet::from_iter(self.select_stack.iter().cloned())
+                    .union(&self.coalesced_nodes)
+                    .collect(),
+            )
+            .collect()
     }
     fn node_moves(&self, n: usize) -> BitSet {
-        self.move_list[n].intersection(
-            &self.active_moves.union(&self.work_list_moves).collect()
-        ).collect()
+        self.move_list[n]
+            .intersection(&self.active_moves.union(&self.work_list_moves).collect())
+            .collect()
     }
     fn move_related(&self, n: usize) -> bool {
-        !self.move_list[n].is_disjoint(&self.active_moves) || !self.move_list[n].is_disjoint(&self.work_list_moves)
+        !self.move_list[n].is_disjoint(&self.active_moves)
+            || !self.move_list[n].is_disjoint(&self.work_list_moves)
     }
 
     fn simplify(&mut self) {
@@ -502,9 +514,9 @@ impl Allocator {
         }
         if d == self.k {
             self.enable_moves(
-                self.adjacent(m).union(
-                    &BitSet::from_iter([m].into_iter())
-                ).collect()
+                self.adjacent(m)
+                    .union(&BitSet::from_iter([m].into_iter()))
+                    .collect(),
             );
             self.spill_work_list.remove(m);
             if self.move_related(m) {
@@ -529,7 +541,7 @@ impl Allocator {
         let m = self.work_list_moves.iter().next().unwrap().clone();
         let (x, y) = (
             self.move_inst[m].def_.iter().next().unwrap(),
-            self.move_inst[m].use_.iter().next().unwrap()
+            self.move_inst[m].use_.iter().next().unwrap(),
         );
         let (mut u, mut v) = if self.pre_colored.contains(y) {
             (y, x)
@@ -548,8 +560,9 @@ impl Allocator {
             self.add_work_list(u);
             self.add_work_list(v);
         } else if (self.pre_colored.contains(u) && self.adjacent(v).iter().all(|t| self.ok(t, u)))
-            || (!self.pre_colored.contains(u) && self.conservative(self.adjacent(u).union(&self.adjacent(v)).collect())
-        ) {
+            || (!self.pre_colored.contains(u)
+                && self.conservative(self.adjacent(u).union(&self.adjacent(v)).collect()))
+        {
             self.coalesced_moves.insert(m);
             self.combine(u, v);
             self.add_work_list(u);
@@ -615,7 +628,7 @@ impl Allocator {
         for m in self.node_moves(u).iter() {
             let (x, y) = (
                 self.move_inst[m].def_.iter().next().unwrap(),
-                self.move_inst[m].use_.iter().next().unwrap()
+                self.move_inst[m].use_.iter().next().unwrap(),
             );
             let v = if self.get_alias(y) == self.get_alias(u) {
                 self.get_alias(x)
@@ -682,9 +695,10 @@ impl Allocator {
         self.spill_temps.extend(new_temps.iter());
         self.spill_vars.extend(self.spilled_nodes.iter());
         self.spilled_nodes.clear();
-        self.initial = self.colored_nodes.union(
-            &self.coalesced_nodes.union(&new_temps).collect()
-        ).collect();
+        self.initial = self
+            .colored_nodes
+            .union(&self.coalesced_nodes.union(&new_temps).collect())
+            .collect();
         self.colored_nodes.clear();
         self.coalesced_nodes.clear();
     }
@@ -723,10 +737,7 @@ impl Allocator {
                         ));
                         new_inst.use_.insert(tmp);
 
-                        spill_store.push((
-                            i,
-                            new_inst
-                        ))
+                        spill_store.push((i, new_inst))
                     }
                 }
                 for (i, inst) in spill_store.into_iter().rev() {
@@ -762,10 +773,7 @@ impl Allocator {
                         ));
                         new_inst.def_.insert(tmp);
 
-                        spill_load.push((
-                            i,
-                            new_inst
-                        ))
+                        spill_load.push((i, new_inst))
                     }
                 }
                 for (i, inst) in spill_load.into_iter().rev() {
@@ -781,19 +789,19 @@ impl Allocator {
         let mut callee_protect = BitSet::new();
         for node in self.nodes.iter() {
             for inst in node.ch.iter() {
-                callee_protect.extend(
-                    inst.def_.iter().map(|x| {
-                        if self.color[x] != usize::MAX {
-                            self.color[x].clone()
-                        } else {
-                            0
-                        }
-                    })
-                )
+                callee_protect.extend(inst.def_.iter().map(|x| {
+                    if self.color[x] != usize::MAX {
+                        self.color[x].clone()
+                    } else {
+                        0
+                    }
+                }))
             }
         }
-        let callee_protect = callee_protect.intersection(&self.callee_saved_colors)
-            .map(|x| self.phy_reg_names[x].clone()).collect::<Vec<_>>();
+        let callee_protect = callee_protect
+            .intersection(&self.callee_saved_colors)
+            .map(|x| self.phy_reg_names[x].clone())
+            .collect::<Vec<_>>();
         res.push(IRNode::CalleeProtect(callee_protect.clone()));
 
         let mut caller_protect_map = Vec::new();
@@ -802,17 +810,21 @@ impl Allocator {
             for inst in node.ch.iter() {
                 match &inst.ir_ {
                     IRNode::Call(_, _, _, _) => {
-                        let live_colors: BitSet = inst.out_.iter().filter_map(
-                            |x| {
+                        let live_colors: BitSet = inst
+                            .out_
+                            .iter()
+                            .filter_map(|x| {
                                 if self.color[x] != usize::MAX && !self.pre_colored.contains(x) {
                                     Some(self.color[x].clone())
                                 } else {
                                     None
                                 }
-                            }
-                        ).collect();
-                        let caller_protect = live_colors.intersection(&self.caller_saved_colors)
-                            .map(|x| self.phy_reg_names[x].clone()).collect::<Vec<_>>();
+                            })
+                            .collect();
+                        let caller_protect = live_colors
+                            .intersection(&self.caller_saved_colors)
+                            .map(|x| self.phy_reg_names[x].clone())
+                            .collect::<Vec<_>>();
                         caller_protect_map.push(caller_protect);
                     }
                     IRNode::Ret(_, _) => {

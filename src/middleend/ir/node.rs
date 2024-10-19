@@ -1,36 +1,36 @@
+use super::IRType;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
-use super::IRType;
 #[derive(Eq, Clone, PartialEq, Hash)]
 pub enum IRNode {
-    Class(String, Vec<IRType>), // name, fields
-    Global(String, IRType, String), // name, ty, val
+    Class(String, Vec<IRType>),          // name, fields
+    Global(String, IRType, String),      // name, ty, val
     Str(String, IRType, String, String), // name, ty, val, original
 
     FuncBegin(IRType, String, Vec<(IRType, String)>), // ret_ty, name, args
     FuncEnd,
     Binary(String, String, IRType, String, String), // res, op, ty, lhs, rhs
-    BrCond(String, String, String), // cond, label1, label2
-    Br(String), // label
-    Ret(IRType, Option<String>), // ty, val
-    Allocate(String, IRType), // res, ty
-    Load(String, IRType, String), // res, ty, ptr
-    Store(IRType, String, String), // ty, val, ptr
+    BrCond(String, String, String),                 // cond, label1, label2
+    Br(String),                                     // label
+    Ret(IRType, Option<String>),                    // ty, val
+    Allocate(String, IRType),                       // res, ty
+    Load(String, IRType, String),                   // res, ty, ptr
+    Store(IRType, String, String),                  // ty, val, ptr
     GetElementPtr(String, IRType, String, Vec<(IRType, String)>), // res, ty, ptr, indexes
-    ICMP(String, String, IRType, String, String), // res, cond, ty, op1, op2
+    ICMP(String, String, IRType, String, String),   // res, cond, ty, op1, op2
     Call(Option<String>, IRType, String, Vec<(IRType, String)>), // res, res_ty, func_name, args
-    Phi(String, IRType, Vec<(String, String)>), // res, ty, vars and labels
+    Phi(String, IRType, Vec<(String, String)>),     // res, ty, vars and labels
     Select(String, String, IRType, String, String), // res, cond, ty, val1, val2
     Label(String),
 
     // internal instructions for SSA implementation and register allocation
-    Move(IRType, String, String), // ty, rd, rs
-    SpillLoad(IRType, String, String), // ty, tmp, spill_var
+    Move(IRType, String, String),       // ty, rd, rs
+    SpillLoad(IRType, String, String),  // ty, tmp, spill_var
     SpillStore(IRType, String, String), // ty, tmp, spill_var
-    ArgLoad(IRType, String, i32), // ty, rd, offset
-    ArgStore(IRType, String, i32), // ty, rs, offset
-    CalleeProtect(Vec<String>), // protected args
-    CalleeRecover(Vec<String>), // protected args
+    ArgLoad(IRType, String, i32),       // ty, rd, offset
+    ArgStore(IRType, String, i32),      // ty, rs, offset
+    CalleeProtect(Vec<String>),         // protected args
+    CalleeRecover(Vec<String>),         // protected args
     CallerProtect(String, Vec<String>), // func_name, protected args
     CallerRecover(String, Vec<String>), // func_name, protected args
 }
@@ -39,7 +39,7 @@ impl IRNode {
     pub fn is_terminator(&self) -> bool {
         match self {
             IRNode::Br(_) | IRNode::BrCond(_, _, _) | IRNode::Ret(_, _) => true,
-            _ => false
+            _ => false,
         }
     }
     pub fn alloc_get_use_mut(&mut self) -> Vec<&mut String> {
@@ -96,10 +96,11 @@ impl IRNode {
                 vec.push(rs);
                 vec
             }
-            _ => Vec::new()
-        }.into_iter().filter(|x| {
-            x.chars().next().unwrap() == '%'
-        }).collect()
+            _ => Vec::new(),
+        }
+        .into_iter()
+        .filter(|x| x.chars().next().unwrap() == '%')
+        .collect()
     }
     pub fn alloc_get_use(&self) -> HashSet<String> {
         match self {
@@ -165,10 +166,11 @@ impl IRNode {
                 set.insert(rs.clone());
                 set
             }
-            _ => HashSet::new()
-        }.into_iter().filter(|x| {
-            x.chars().next().unwrap() == '%'
-        }).collect()
+            _ => HashSet::new(),
+        }
+        .into_iter()
+        .filter(|x| x.chars().next().unwrap() == '%')
+        .collect()
     }
     pub fn alloc_get_def_mut(&mut self) -> HashSet<&mut String> {
         match self {
@@ -207,7 +209,7 @@ impl IRNode {
                 set.insert(rd);
                 set
             }
-            _ => HashSet::new()
+            _ => HashSet::new(),
         }
     }
     pub fn alloc_get_def(&self) -> HashSet<String> {
@@ -252,10 +254,11 @@ impl IRNode {
                 set.insert(rd.clone());
                 set
             }
-            _ => HashSet::new()
-        }.into_iter().filter(|x| {
-            x.chars().next().unwrap() == '%'
-        }).collect()
+            _ => HashSet::new(),
+        }
+        .into_iter()
+        .filter(|x| x.chars().next().unwrap() == '%')
+        .collect()
     }
 
     pub fn get_use_mut(&mut self) -> Vec<&mut String> {
@@ -312,10 +315,11 @@ impl IRNode {
                 vec.push(rs);
                 vec
             }
-            _ => Vec::new()
-        }.into_iter().filter(|x| {
-            x.chars().next().unwrap() == '%'
-        }).collect()
+            _ => Vec::new(),
+        }
+        .into_iter()
+        .filter(|x| x.chars().next().unwrap() == '%')
+        .collect()
     }
     pub fn get_def_mut(&mut self) -> HashSet<&mut String> {
         match self {
@@ -354,12 +358,13 @@ impl IRNode {
                 set.insert(rd);
                 set
             }
-            _ => HashSet::new()
-        }.into_iter().filter(|x| {
-            x.chars().next().unwrap() == '%'
-        }).collect()
+            _ => HashSet::new(),
+        }
+        .into_iter()
+        .filter(|x| x.chars().next().unwrap() == '%')
+        .collect()
     }
-    pub fn get_use(&self) -> HashSet<String>{
+    pub fn get_use(&self) -> HashSet<String> {
         match self {
             IRNode::Binary(_, _, _, lhs, rhs) => {
                 let mut set = HashSet::new();
@@ -413,12 +418,13 @@ impl IRNode {
                 set.insert(rs.clone());
                 set
             }
-            _ => HashSet::new()
-        }.into_iter().filter(|x| {
-            x.chars().next().unwrap() == '%'
-        }).collect()
+            _ => HashSet::new(),
+        }
+        .into_iter()
+        .filter(|x| x.chars().next().unwrap() == '%')
+        .collect()
     }
-    pub fn get_def(&self) -> HashSet<String>{
+    pub fn get_def(&self) -> HashSet<String> {
         match self {
             IRNode::Binary(res, _, _, _, _) => {
                 let mut set = HashSet::new();
@@ -455,10 +461,11 @@ impl IRNode {
                 set.insert(rd.clone());
                 set
             }
-            _ => HashSet::new()
-        }.into_iter().filter(|x| {
-            x.chars().next().unwrap() == '%'
-        }).collect()
+            _ => HashSet::new(),
+        }
+        .into_iter()
+        .filter(|x| x.chars().next().unwrap() == '%')
+        .collect()
     }
     pub fn check_const(&self) -> Option<i32> {
         match self {
@@ -468,28 +475,28 @@ impl IRNode {
                         "add" => lhs.checked_add(rhs),
                         "sub" => lhs.checked_sub(rhs),
                         "mul" => lhs.checked_mul(rhs),
-                        "sdiv" =>lhs.checked_div(rhs),
+                        "sdiv" => lhs.checked_div(rhs),
                         "srem" => Some(lhs % rhs),
                         "shl" => Some(lhs << rhs),
                         "ashr" => Some(lhs >> rhs),
                         "and" => Some(lhs & rhs),
                         "or" => Some(lhs | rhs),
                         "xor" => Some(lhs ^ rhs),
-                        _ => None
+                        _ => None,
                     }
                 } else {
-                    if lhs == rhs{
-                        match op.as_str(){
+                    if lhs == rhs {
+                        match op.as_str() {
                             "sub" => Some(0),
                             "xor" => Some(0),
-                            _ => None
+                            _ => None,
                         }
-                    }else{
+                    } else {
                         None
                     }
                 }
-            },
-            IRNode::ICMP(_, op, _, lhs, rhs)=>{
+            }
+            IRNode::ICMP(_, op, _, lhs, rhs) => {
                 if let (Ok(lhs), Ok(rhs)) = (lhs.parse::<i32>(), rhs.parse::<i32>()) {
                     match op.as_str() {
                         "eq" => Some((lhs == rhs) as i32),
@@ -498,32 +505,32 @@ impl IRNode {
                         "sle" => Some((lhs <= rhs) as i32),
                         "sgt" => Some((lhs > rhs) as i32),
                         "sge" => Some((lhs >= rhs) as i32),
-                        _ => None
+                        _ => None,
                     }
                 } else {
-                    if lhs == rhs{
-                        match op.as_str(){
+                    if lhs == rhs {
+                        match op.as_str() {
                             "eq" => Some(1),
                             "ne" => Some(0),
                             "slt" => Some(0),
                             "sle" => Some(1),
                             "sgt" => Some(0),
                             "sge" => Some(1),
-                            _ => None
+                            _ => None,
                         }
-                    }else{
+                    } else {
                         None
                     }
                 }
-            },
+            }
             IRNode::Move(_, _, rs) => {
                 if let Ok(val) = rs.parse::<i32>() {
                     Some(val)
                 } else {
                     None
                 }
-            },
-            _ => None
+            }
+            _ => None,
         }
     }
 }
@@ -532,13 +539,25 @@ impl Display for IRNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             IRNode::Class(name, ch) => {
-                write!(f, "{} = type {{{}}}\n", name, ch.iter().map(|x| format!("{}", x)).collect::<Vec<String>>().join(", "))
+                write!(
+                    f,
+                    "{} = type {{{}}}\n",
+                    name,
+                    ch.iter()
+                        .map(|x| format!("{}", x))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
             }
             IRNode::Global(name, ty, val) => {
                 write!(f, "@{} = global {} {}\n", name, ty, val)
             }
             IRNode::Str(name, ty, val, _) => {
-                write!(f, "@{} = private unnamed_addr constant {} c\"{}\\00\"\n", name, ty, val)
+                write!(
+                    f,
+                    "@{} = private unnamed_addr constant {} c\"{}\\00\"\n",
+                    name, ty, val
+                )
             }
             IRNode::FuncBegin(ret_ty, name, args) => {
                 write!(
@@ -546,9 +565,10 @@ impl Display for IRNode {
                     "define dso_local {} @{}({}) {{\nentry:\n",
                     ret_ty,
                     name,
-                    args.iter().map(
-                        |(ty, name)| format!("{} {}", ty, name)
-                    ).collect::<Vec<String>>().join(", ")
+                    args.iter()
+                        .map(|(ty, name)| format!("{} {}", ty, name))
+                        .collect::<Vec<String>>()
+                        .join(", ")
                 )
             }
             IRNode::FuncEnd => {
@@ -582,9 +602,11 @@ impl Display for IRNode {
                     res,
                     ty,
                     ptr,
-                    indexes.iter().map(
-                        |(ty, idx)| format!("{} {}", ty, idx)
-                    ).collect::<Vec<String>>().join(", ")
+                    indexes
+                        .iter()
+                        .map(|(ty, idx)| format!("{} {}", ty, idx))
+                        .collect::<Vec<String>>()
+                        .join(", ")
                 )
             }
             IRNode::ICMP(res, cond, ty, op1, op2) => {
@@ -596,13 +618,14 @@ impl Display for IRNode {
                     "{}call {} @{}({})\n",
                     match res {
                         Some(res) => format!("{} = ", res),
-                        None => "".to_string()
+                        None => "".to_string(),
                     },
                     res_ty,
                     name,
-                    args.iter().map(
-                        |(ty, arg)| format!("{} {}", ty, arg)
-                    ).collect::<Vec<String>>().join(", ")
+                    args.iter()
+                        .map(|(ty, arg)| format!("{} {}", ty, arg))
+                        .collect::<Vec<String>>()
+                        .join(", ")
                 )
             }
             IRNode::Phi(res, ty, labels) => {
@@ -611,21 +634,18 @@ impl Display for IRNode {
                     "{} = phi {} {}\n",
                     res,
                     ty,
-                    labels.iter().map(
-                        |(val, label)| format!("[{}, %{}]", val, label)
-                    ).collect::<Vec<String>>().join(", ")
+                    labels
+                        .iter()
+                        .map(|(val, label)| format!("[{}, %{}]", val, label))
+                        .collect::<Vec<String>>()
+                        .join(", ")
                 )
             }
             IRNode::Select(res, cond, ty, val1, val2) => {
                 write!(
                     f,
                     "{} = select i1 {}, {} {}, {} {}\n",
-                    res,
-                    cond,
-                    ty,
-                    val1,
-                    ty,
-                    val2
+                    res, cond, ty, val1, ty, val2
                 )
             }
             IRNode::Label(label) => {

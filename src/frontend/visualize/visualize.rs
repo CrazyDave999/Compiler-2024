@@ -1,7 +1,6 @@
-use std::fmt;
 use crate::frontend::ast::ASTNode;
 use crate::frontend::ast::Type;
-
+use std::fmt;
 
 impl fmt::Display for Type<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -32,7 +31,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("VarDecl\n");
 
-            for (name, op,_) in ch {
+            for (name, op, _) in ch {
                 show_indent(indent);
                 print!("{} {}\n", ty, name);
                 if let Some(expr) = op {
@@ -51,7 +50,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("Args:\n");
             show_indent(indent);
-            for (ty, name,_) in arg_list {
+            for (ty, name, _) in arg_list {
                 print!("{} {},", ty, name);
             }
             print!("\n");
@@ -158,7 +157,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("{}\n", op);
         }
-        ASTNode::ArrayAccess(lhs, inner, _,_) => {
+        ASTNode::ArrayAccess(lhs, inner, _, _) => {
             show_indent(indent);
             print!("ArrayAccess\n");
             show_indent(indent);
@@ -177,7 +176,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
             show_indent(indent);
             print!("{}\n", name);
         }
-        ASTNode::FuncCall(lhs, params, _,_) => {
+        ASTNode::FuncCall(lhs, params, _, _) => {
             show_indent(indent);
             print!("FuncCall\n");
             show_indent(indent);
@@ -299,7 +298,7 @@ fn print_ast(ast: &ASTNode, indent: usize) {
                 print_ast(node, indent + 2);
             }
         }
-        ASTNode::Ident(name, _, _, _, _,_) => {
+        ASTNode::Ident(name, _, _, _, _, _) => {
             show_indent(indent);
             print!("Ident {}\n", name);
         }

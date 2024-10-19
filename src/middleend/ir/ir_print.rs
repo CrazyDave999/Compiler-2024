@@ -1,8 +1,10 @@
-use std::io::{self, Write};
 use super::IRNode;
+use std::io::{self, Write};
 
 pub fn print_ir<W: Write>(ir: &Vec<IRNode>, os: &mut W) -> io::Result<()> {
-    write!(os, "
+    write!(
+        os,
+        "
 target triple = \"riscv32-unknown-unknown-elf\"
 
 declare dso_local void @print(ptr)
@@ -28,7 +30,8 @@ declare dso_local ptr @malloc(i32)
 declare dso_local ptr @CrazyDave..AllocArray(i32)
 declare dso_local i32 @CrazyDave..GetArraySize(ptr)
 
-")?;
+"
+    )?;
     let mut indent = 0;
     for node in ir {
         if let IRNode::FuncEnd = node {

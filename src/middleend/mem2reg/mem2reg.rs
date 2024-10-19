@@ -1,5 +1,5 @@
-use super::IRNode;
 use super::utils::CFG;
+use super::IRNode;
 
 pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
     let mut res = Vec::new();

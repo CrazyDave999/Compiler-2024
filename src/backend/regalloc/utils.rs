@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet};
-use bit_set::BitSet;
 use super::IRNode;
+use bit_set::BitSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct Instruction {

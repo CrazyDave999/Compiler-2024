@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use super::utils::escape_string;
-use super::IRType;
-use super::IRNode;
 use super::ast::ASTNode;
+use super::utils::escape_string;
+use super::IRNode;
+use super::IRType;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 enum LoopType {
@@ -134,7 +134,8 @@ impl Context {
         *self.size_map.get(name).unwrap()
     }
 
-    pub fn insert_statement(&mut self, node: IRNode) -> (bool, usize) { // (is_global, index)
+    pub fn insert_statement(&mut self, node: IRNode) -> (bool, usize) {
+        // (is_global, index)
         if self.is_global() {
             self.global_init.push(node);
             (true, self.global_init.len() - 1)
@@ -189,7 +190,11 @@ pub fn build_ir<'a>(ast: &'a ASTNode<'a>) -> Vec<IRNode> {
     for ch in ctx.var_decls {
         res.push(ch);
     }
-    res.push(IRNode::FuncBegin(IRType::void(), String::from("global..init"), vec![]));
+    res.push(IRNode::FuncBegin(
+        IRType::void(),
+        String::from("global..init"),
+        vec![],
+    ));
     for ch in ctx.global_init {
         res.push(ch);
     }
@@ -200,7 +205,12 @@ pub fn build_ir<'a>(ast: &'a ASTNode<'a>) -> Vec<IRNode> {
         match &ch {
             IRNode::FuncBegin(_, name, _) => {
                 if name == "main" {
-                    res.push(IRNode::Call(None, IRType::void(), String::from("global..init"), vec![]));
+                    res.push(IRNode::Call(
+                        None,
+                        IRType::void(),
+                        String::from("global..init"),
+                        vec![],
+                    ));
                 }
             }
             _ => {}
@@ -230,7 +240,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             }
                         }
                         ctx.insert_class_size(*name, size);
-                        ctx.class_defs.push(IRNode::Class(format!("%class.{}", *name), fields));
+                        ctx.class_defs
+                            .push(IRNode::Class(format!("%class.{}", *name), fields));
                     }
                     _ => {}
                 }
@@ -247,7 +258,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let mut has_constr = false;
             for node in ch {
                 match node {
-                    ASTNode::FuncDef(_, _, _, _, _) => { dfs(node, ctx); }
+                    ASTNode::FuncDef(_, _, _, _, _) => {
+                        dfs(node, ctx);
+                    }
                     ASTNode::ConstrDef(_, _, _) => {
                         dfs(node, ctx);
                         has_constr = true;
@@ -259,7 +272,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 ctx.insert_statement(IRNode::FuncBegin(
                     IRType::void(),
                     ctx.func_def(name),
-                    vec![(IRType::PTR(Box::from(IRType::class(name))), String::from("%this"))],
+                    vec![(
+                        IRType::PTR(Box::from(IRType::class(name))),
+                        String::from("%this"),
+                    )],
                 ));
                 ctx.insert_statement(IRNode::Ret(IRType::void(), None));
                 ctx.insert_statement(IRNode::FuncEnd);
@@ -274,17 +290,31 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
 
             let mut args_ = Vec::new();
             if let Some(class_name) = ctx.class_name.as_ref() {
-                args_.push((IRType::PTR(Box::from(IRType::class(class_name))), String::from("%this")));
+                args_.push((
+                    IRType::PTR(Box::from(IRType::class(class_name))),
+                    String::from("%this"),
+                ));
             }
             for (ty, name, _) in args {
                 args_.push((IRType::from(ty), ctx.param(name)));
             }
 
-            ctx.func_defs.push(IRNode::FuncBegin(IRType::from(ret_ty), ctx.func_def(*name), args_));
+            ctx.func_defs.push(IRNode::FuncBegin(
+                IRType::from(ret_ty),
+                ctx.func_def(*name),
+                args_,
+            ));
             ctx.last_label = String::from("entry");
             for (ty, name, cnt) in args {
-                ctx.func_defs.push(IRNode::Allocate(ctx.local_var_def(name, *cnt), IRType::from(ty)));
-                ctx.func_defs.push(IRNode::Store(IRType::from(ty), ctx.param(name), ctx.local_var_def(name, *cnt)));
+                ctx.func_defs.push(IRNode::Allocate(
+                    ctx.local_var_def(name, *cnt),
+                    IRType::from(ty),
+                ));
+                ctx.func_defs.push(IRNode::Store(
+                    IRType::from(ty),
+                    ctx.param(name),
+                    ctx.local_var_def(name, *cnt),
+                ));
             }
 
             dfs(block, ctx);
@@ -300,10 +330,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         ));
                     } else {
                         let ret_ty = IRType::from(ret_ty);
-                        ctx.func_defs.push(IRNode::Ret(
-                            ret_ty.clone(),
-                            ret_ty.default_value(),
-                        ));
+                        ctx.func_defs
+                            .push(IRNode::Ret(ret_ty.clone(), ret_ty.default_value()));
                     }
                 }
             }
@@ -315,9 +343,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             ctx.push();
             let mut args = Vec::new();
             if let Some(class_name) = ctx.class_name.as_ref() {
-                args.push((IRType::PTR(Box::from(IRType::class(class_name))), String::from("%this")));
+                args.push((
+                    IRType::PTR(Box::from(IRType::class(class_name))),
+                    String::from("%this"),
+                ));
             }
-            ctx.func_defs.push(IRNode::FuncBegin(IRType::void(), ctx.func_def(*name), args));
+            ctx.func_defs
+                .push(IRNode::FuncBegin(IRType::void(), ctx.func_def(*name), args));
             ctx.last_label = String::from("entry");
             dfs(block, ctx);
             let last = ctx.func_defs.last().unwrap();
@@ -342,9 +374,9 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             IRType::Var(name, _) => match name.as_str() {
                                 "i32" => String::from("0"),
                                 "i1" => String::from("0"),
-                                _ => unreachable!()
+                                _ => unreachable!(),
                             },
-                            IRType::PTR(_) => String::from("null")
+                            IRType::PTR(_) => String::from("null"),
                         },
                     ));
                     if let Some(init) = init {
@@ -359,7 +391,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 }
             } else {
                 for (name, expr, cnt) in vars {
-                    ctx.func_defs.push(IRNode::Allocate(ctx.local_var_def(name, *cnt), IRType::from(ty)));
+                    ctx.func_defs.push(IRNode::Allocate(
+                        ctx.local_var_def(name, *cnt),
+                        IRType::from(ty),
+                    ));
                     if let Some(expr) = expr {
                         let expr_info = dfs(expr, ctx);
                         let right_ir_name = expr_info.get_right_ir_name(ctx);
@@ -381,15 +416,13 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             ctx.pop();
             IRInfo::void()
         }
-        ASTNode::ThisExpr(_) => {
-            IRInfo {
-                ty: IRType::PTR(Box::from(IRType::class(ctx.class_name.as_ref().unwrap()))),
-                left_ir_name: String::from(""),
-                right_ir_name: Some(String::from("%this")),
-                lhs_ir_name: None,
-                lhs_ty: IRType::void(),
-            }
-        }
+        ASTNode::ThisExpr(_) => IRInfo {
+            ty: IRType::PTR(Box::from(IRType::class(ctx.class_name.as_ref().unwrap()))),
+            left_ir_name: String::from(""),
+            right_ir_name: Some(String::from("%this")),
+            lhs_ir_name: None,
+            lhs_ty: IRType::void(),
+        },
         ASTNode::ArrayInit(name, sizes, op, _) => {
             if let Some(op) = op {
                 alloc_arr_by_const(op, ctx)
@@ -411,7 +444,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 None,
                 IRType::void(),
                 ctx.func_use(name, Some(String::from(*name))),
-                vec![(IRType::PTR(Box::from(IRType::class(name))), res_name.clone())],
+                vec![(
+                    IRType::PTR(Box::from(IRType::class(name))),
+                    res_name.clone(),
+                )],
             ));
             IRInfo {
                 ty: res_ty.clone(),
@@ -483,7 +519,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             "|" => "or",
                             "^" => "xor",
                             _ => unreachable!(),
-                        }.to_string(),
+                        }
+                        .to_string(),
                         res_ty.clone(),
                         lhs_ir_name,
                         rhs_ir_name,
@@ -515,7 +552,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                     "==" => "eq",
                                     "!=" => "ne",
                                     _ => unreachable!(),
-                                }.to_string(),
+                                }
+                                .to_string(),
                                 lhs_info.ty.clone(),
                                 lhs_ir_name,
                                 rhs_ir_name,
@@ -535,10 +573,17 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                         ">" => "string.gt",
                                         ">=" => "string.ge",
                                         _ => unreachable!(),
-                                    }.to_string(),
+                                    }
+                                    .to_string(),
                                     vec![
-                                        (IRType::PTR(Box::from(IRType::class("string"))), lhs_ir_name),
-                                        (IRType::PTR(Box::from(IRType::class("string"))), rhs_ir_name),
+                                        (
+                                            IRType::PTR(Box::from(IRType::class("string"))),
+                                            lhs_ir_name,
+                                        ),
+                                        (
+                                            IRType::PTR(Box::from(IRType::class("string"))),
+                                            rhs_ir_name,
+                                        ),
                                     ],
                                 ));
                             } else {
@@ -548,7 +593,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                         "==" => "eq",
                                         "!=" => "ne",
                                         _ => unreachable!(),
-                                    }.to_string(),
+                                    }
+                                    .to_string(),
                                     lhs_info.ty.clone(),
                                     lhs_ir_name,
                                     rhs_ir_name,
@@ -575,10 +621,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
 
                     // for displacing phi
                     let res_name = ctx.generate();
-                    ctx.insert_statement(IRNode::Allocate(
-                        res_name.clone(),
-                        IRType::i1(),
-                    ));
+                    ctx.insert_statement(IRNode::Allocate(res_name.clone(), IRType::i1()));
                     ctx.insert_statement(IRNode::Store(
                         IRType::i1(),
                         lhs_ir_name.clone(),
@@ -608,9 +651,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         res_name.clone(),
                     ));
 
-                    ctx.insert_statement(IRNode::Br(
-                        land_end_label.clone(),
-                    ));
+                    ctx.insert_statement(IRNode::Br(land_end_label.clone()));
 
                     ctx.insert_statement(IRNode::Label(land_false_label.clone()));
                     ctx.insert_statement(IRNode::Store(
@@ -618,9 +659,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         "0".to_string(),
                         res_name.clone(),
                     ));
-                    ctx.insert_statement(IRNode::Br(
-                        land_end_label.clone(),
-                    ));
+                    ctx.insert_statement(IRNode::Br(land_end_label.clone()));
                     ctx.insert_statement(IRNode::Label(land_end_label.clone()));
 
                     // ctx.insert_statement(IRNode::Phi(
@@ -635,7 +674,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     IRInfo {
                         ty: IRType::i1(),
                         left_ir_name: res_name, // for displacing phi
-                        right_ir_name: None, // for displacing phi
+                        right_ir_name: None,    // for displacing phi
                         lhs_ir_name: None,
                         lhs_ty: IRType::void(),
                     }
@@ -650,10 +689,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
 
                     // for displacing phi
                     let res_name = ctx.generate();
-                    ctx.insert_statement(IRNode::Allocate(
-                        res_name.clone(),
-                        IRType::i1(),
-                    ));
+                    ctx.insert_statement(IRNode::Allocate(res_name.clone(), IRType::i1()));
                     ctx.insert_statement(IRNode::Store(
                         IRType::i1(),
                         lhs_ir_name.clone(),
@@ -671,9 +707,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         "1".to_string(),
                         res_name.clone(),
                     ));
-                    ctx.insert_statement(IRNode::Br(
-                        lor_end_label.clone(),
-                    ));
+                    ctx.insert_statement(IRNode::Br(lor_end_label.clone()));
                     ctx.insert_statement(IRNode::Label(lor_false_label.clone()));
                     ctx.last_label = lor_false_label.clone();
                     ctx.insert_statement(IRNode::Store(
@@ -691,9 +725,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         res_name.clone(),
                     ));
 
-                    ctx.insert_statement(IRNode::Br(
-                        lor_end_label.clone(),
-                    ));
+                    ctx.insert_statement(IRNode::Br(lor_end_label.clone()));
                     ctx.insert_statement(IRNode::Label(lor_end_label.clone()));
 
                     // ctx.insert_statement(IRNode::Phi(
@@ -708,7 +740,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     IRInfo {
                         ty: IRType::i1(),
                         left_ir_name: res_name, // for displacing phi
-                        right_ir_name: None, // for displacing phi
+                        right_ir_name: None,    // for displacing phi
                         lhs_ir_name: None,
                         lhs_ty: IRType::void(),
                     }
@@ -723,9 +755,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ));
                     IRInfo::void()
                 }
-                _ => {
-                    IRInfo::void()
-                }
+                _ => IRInfo::void(),
             }
         }
         ASTNode::UnitaryExpr(op, rhs, _) => {
@@ -741,7 +771,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                             "++" => "add",
                             "--" => "sub",
                             _ => unreachable!(),
-                        }.to_string(),
+                        }
+                        .to_string(),
                         res_ty.clone(),
                         rhs_ir_name,
                         String::from("1"),
@@ -779,7 +810,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         String::from("-1"),
                     ));
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
             IRInfo {
                 ty: res_ty,
@@ -799,11 +830,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
 
             // for displacing phi
             let res_name = ctx.generate();
-            let (is_global, index) = ctx.insert_statement(IRNode::Allocate(
-                res_name.clone(),
-                cond_info.ty.clone(),
-            ));
-
+            let (is_global, index) =
+                ctx.insert_statement(IRNode::Allocate(res_name.clone(), cond_info.ty.clone()));
 
             ctx.insert_statement(IRNode::BrCond(
                 cond_ir_name,
@@ -826,15 +854,11 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 }
             } else {
                 if is_global {
-                    ctx.global_init[index] = IRNode::Allocate(
-                        res_name.clone(),
-                        expr1_info.ty.clone(),
-                    );
+                    ctx.global_init[index] =
+                        IRNode::Allocate(res_name.clone(), expr1_info.ty.clone());
                 } else {
-                    ctx.func_defs[index] = IRNode::Allocate(
-                        res_name.clone(),
-                        expr1_info.ty.clone(),
-                    );
+                    ctx.func_defs[index] =
+                        IRNode::Allocate(res_name.clone(), expr1_info.ty.clone());
                 }
                 ctx.insert_statement(IRNode::Store(
                     expr1_info.ty.clone(),
@@ -842,7 +866,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     res_name.clone(),
                 ));
             }
-
 
             ctx.insert_statement(IRNode::Br(end_label.clone()));
 
@@ -865,7 +888,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
 
             ctx.func_defs.push(IRNode::Label(end_label.clone()));
             ctx.last_label = end_label;
-
 
             IRInfo {
                 ty: expr1_info.ty.clone(),
@@ -894,7 +916,8 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     "++" => "add",
                     "--" => "sub",
                     _ => unreachable!(),
-                }.to_string(),
+                }
+                .to_string(),
                 res_ty.clone(),
                 lhs_ir_name.clone(),
                 String::from("1"),
@@ -937,24 +960,20 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
         ASTNode::MemberAccess(lhs, name, _, idx, ty) => {
             let lhs_info = dfs(lhs, ctx);
             match ty.name {
-                "#METHOD#" => {
-                    IRInfo {
-                        ty: IRType::from(ty),
-                        left_ir_name: String::from(""),
-                        right_ir_name: Some(ctx.func_use(*name, Some(lhs_info.ty.get_class_name()))),
-                        lhs_ir_name: Some(lhs_info.get_right_ir_name(ctx)),
-                        lhs_ty: lhs_info.ty,
-                    }
-                }
-                "#METHOD_SIZE#" => {
-                    IRInfo {
-                        ty: IRType::from(ty),
-                        left_ir_name: String::from(""),
-                        right_ir_name: Some(ctx.func_use("CrazyDave..GetArraySize", None)),
-                        lhs_ir_name: Some(lhs_info.get_right_ir_name(ctx)),
-                        lhs_ty: lhs_info.ty,
-                    }
-                }
+                "#METHOD#" => IRInfo {
+                    ty: IRType::from(ty),
+                    left_ir_name: String::from(""),
+                    right_ir_name: Some(ctx.func_use(*name, Some(lhs_info.ty.get_class_name()))),
+                    lhs_ir_name: Some(lhs_info.get_right_ir_name(ctx)),
+                    lhs_ty: lhs_info.ty,
+                },
+                "#METHOD_SIZE#" => IRInfo {
+                    ty: IRType::from(ty),
+                    left_ir_name: String::from(""),
+                    right_ir_name: Some(ctx.func_use("CrazyDave..GetArraySize", None)),
+                    lhs_ir_name: Some(lhs_info.get_right_ir_name(ctx)),
+                    lhs_ty: lhs_info.ty,
+                },
 
                 _ => {
                     let res_ty = IRType::from(ty);
@@ -964,7 +983,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         ptr_name.clone(),
                         IRType::Var(lhs_info.ty.get_ir_class_name(), vec![]),
                         lhs_ir_name,
-                        vec![(IRType::i32(), String::from("0")), (IRType::i32(), (*idx).to_string())],
+                        vec![
+                            (IRType::i32(), String::from("0")),
+                            (IRType::i32(), (*idx).to_string()),
+                        ],
                     ));
 
                     IRInfo {
@@ -993,12 +1015,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let res_ty = IRType::from(ret_ty);
 
             if ret_ty.is_void() {
-                ctx.insert_statement(IRNode::Call(
-                    None,
-                    res_ty.clone(),
-                    lhs_ir_name,
-                    args,
-                ));
+                ctx.insert_statement(IRNode::Call(None, res_ty.clone(), lhs_ir_name, args));
             } else {
                 ctx.insert_statement(IRNode::Call(
                     Some(res_name.clone()),
@@ -1048,7 +1065,6 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             ctx.push();
             let pre_loop = ctx.cur_loop.clone();
             let for_cnt = ctx.generate_loop(LoopType::For);
-
 
             if let Some(expr1) = expr1 {
                 dfs(expr1, ctx);
@@ -1120,13 +1136,12 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             if let Some(expr) = ret {
                 let expr_info = dfs(expr, ctx);
                 let expr_ir_name = expr_info.get_right_ir_name(ctx);
-                ctx.func_defs.push(IRNode::Ret(
-                    expr_info.ty,
-                    Some(expr_ir_name),
-                ));
+                ctx.func_defs
+                    .push(IRNode::Ret(expr_info.ty, Some(expr_ir_name)));
                 IRInfo::void()
             } else {
-                ctx.func_defs.push(IRNode::Ret(IRType::Var(String::from("void"), vec![]), None));
+                ctx.func_defs
+                    .push(IRNode::Ret(IRType::Var(String::from("void"), vec![]), None));
                 IRInfo::void()
             }
         }
@@ -1134,12 +1149,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let (loop_cnt, ty) = ctx.cur_loop.clone();
             match ty {
                 LoopType::For => {
-                    ctx.func_defs.push(IRNode::Br(format!("for.end.{}", loop_cnt)));
+                    ctx.func_defs
+                        .push(IRNode::Br(format!("for.end.{}", loop_cnt)));
                 }
                 LoopType::While => {
-                    ctx.func_defs.push(IRNode::Br(format!("while.end.{}", loop_cnt)));
+                    ctx.func_defs
+                        .push(IRNode::Br(format!("while.end.{}", loop_cnt)));
                 }
-                LoopType::Null => unreachable!()
+                LoopType::Null => unreachable!(),
             }
             IRInfo::void()
         }
@@ -1147,33 +1164,31 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
             let (loop_cnt, ty) = ctx.cur_loop.clone();
             match ty {
                 LoopType::For => {
-                    ctx.func_defs.push(IRNode::Br(format!("for.inc.{}", loop_cnt)));
+                    ctx.func_defs
+                        .push(IRNode::Br(format!("for.inc.{}", loop_cnt)));
                 }
                 LoopType::While => {
-                    ctx.func_defs.push(IRNode::Br(format!("while.cond.{}", loop_cnt)));
+                    ctx.func_defs
+                        .push(IRNode::Br(format!("while.cond.{}", loop_cnt)));
                 }
-                LoopType::Null => unreachable!()
+                LoopType::Null => unreachable!(),
             }
             IRInfo::void()
         }
-        ASTNode::NULL(_) => {
-            IRInfo {
-                ty: IRType::PTR(Box::from(IRType::void())),
-                left_ir_name: String::from(""),
-                right_ir_name: Some("null".to_string()),
-                lhs_ir_name: None,
-                lhs_ty: IRType::void(),
-            }
-        }
-        ASTNode::Int(val, _) => {
-            IRInfo {
-                ty: IRType::i32(),
-                left_ir_name: String::from(""),
-                right_ir_name: Some(val.to_string()),
-                lhs_ir_name: None,
-                lhs_ty: IRType::void(),
-            }
-        }
+        ASTNode::NULL(_) => IRInfo {
+            ty: IRType::PTR(Box::from(IRType::void())),
+            left_ir_name: String::from(""),
+            right_ir_name: Some("null".to_string()),
+            lhs_ir_name: None,
+            lhs_ty: IRType::void(),
+        },
+        ASTNode::Int(val, _) => IRInfo {
+            ty: IRType::i32(),
+            left_ir_name: String::from(""),
+            right_ir_name: Some(val.to_string()),
+            lhs_ir_name: None,
+            lhs_ty: IRType::void(),
+        },
         ASTNode::Str(s, _) => {
             let (escaped, l) = escape_string(*s);
             let str_cnt = ctx.generate_str();
@@ -1191,18 +1206,16 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 lhs_ty: IRType::void(),
             }
         }
-        ASTNode::Bool(b, _) => {
-            IRInfo {
-                ty: IRType::i1(),
-                left_ir_name: String::from(""),
-                right_ir_name: match b {
-                    true => Some("1".to_string()),
-                    false => Some("0".to_string()),
-                },
-                lhs_ir_name: None,
-                lhs_ty: IRType::void(),
-            }
-        }
+        ASTNode::Bool(b, _) => IRInfo {
+            ty: IRType::i1(),
+            left_ir_name: String::from(""),
+            right_ir_name: match b {
+                true => Some("1".to_string()),
+                false => Some("0".to_string()),
+            },
+            lhs_ir_name: None,
+            lhs_ty: IRType::void(),
+        },
         ASTNode::FmtStr(ch, _) => {
             let mut last_str = String::new();
             let mut lhs_name = String::new();
@@ -1246,7 +1259,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                     IRType::PTR(Box::from(IRType::class("string"))),
                                     String::from("string.add"),
                                     vec![
-                                        (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
+                                        (
+                                            IRType::PTR(Box::from(IRType::class("string"))),
+                                            lhs_name.clone(),
+                                        ),
                                         (IRType::PTR(Box::from(IRType::class("string"))), rhs_name),
                                     ],
                                 ));
@@ -1269,8 +1285,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                 IRType::PTR(Box::from(IRType::class("string"))),
                                 String::from("string.add"),
                                 vec![
-                                    (IRType::PTR(Box::from(IRType::class("string"))), last_str_name.clone()),
-                                    (IRType::PTR(Box::from(IRType::class("string"))), rhs_name.clone()),
+                                    (
+                                        IRType::PTR(Box::from(IRType::class("string"))),
+                                        last_str_name.clone(),
+                                    ),
+                                    (
+                                        IRType::PTR(Box::from(IRType::class("string"))),
+                                        rhs_name.clone(),
+                                    ),
                                 ],
                             ));
 
@@ -1283,8 +1305,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                                     IRType::PTR(Box::from(IRType::class("string"))),
                                     String::from("string.add"),
                                     vec![
-                                        (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
-                                        (IRType::PTR(Box::from(IRType::class("string"))), add_name_1.clone()),
+                                        (
+                                            IRType::PTR(Box::from(IRType::class("string"))),
+                                            lhs_name.clone(),
+                                        ),
+                                        (
+                                            IRType::PTR(Box::from(IRType::class("string"))),
+                                            add_name_1.clone(),
+                                        ),
                                     ],
                                 ));
                                 lhs_name = add_name_2;
@@ -1311,8 +1339,14 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                         IRType::PTR(Box::from(IRType::class("string"))),
                         String::from("string.add"),
                         vec![
-                            (IRType::PTR(Box::from(IRType::class("string"))), lhs_name.clone()),
-                            (IRType::PTR(Box::from(IRType::class("string"))), last_str_name.clone()),
+                            (
+                                IRType::PTR(Box::from(IRType::class("string"))),
+                                lhs_name.clone(),
+                            ),
+                            (
+                                IRType::PTR(Box::from(IRType::class("string"))),
+                                last_str_name.clone(),
+                            ),
                         ],
                     ));
                     lhs_name = add_name;
@@ -1328,9 +1362,7 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 lhs_ty: IRType::void(),
             }
         }
-        ASTNode::ArrConst(_, _) => {
-            alloc_arr_by_const(ast, ctx)
-        }
+        ASTNode::ArrConst(_, _) => alloc_arr_by_const(ast, ctx),
         ASTNode::Ident(name, _, idx, ty, cnt, is_global) => {
             if *idx != -1 {
                 // 成员
@@ -1340,7 +1372,10 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                     ptr_name.clone(),
                     IRType::Var(ctx.class_use_this(), vec![]),
                     String::from("%this"),
-                    vec![(IRType::i32(), String::from("0")), (IRType::i32(), (*idx).to_string())],
+                    vec![
+                        (IRType::i32(), String::from("0")),
+                        (IRType::i32(), (*idx).to_string()),
+                    ],
                 ));
 
                 IRInfo {
@@ -1352,53 +1387,54 @@ fn dfs<'a>(ast: &ASTNode<'a>, ctx: &mut Context) -> IRInfo {
                 }
             } else {
                 match ty.name {
-                    "#FUNC#" => {
-                        IRInfo {
-                            ty: IRType::from(ty),
-                            left_ir_name: String::from(""),
-                            right_ir_name: Some(ctx.func_use(name, None)),
-                            lhs_ir_name: None,
-                            lhs_ty: IRType::void(),
-                        }
-                    }
-                    "#METHOD#" => {
-                        IRInfo {
-                            ty: IRType::from(ty),
-                            left_ir_name: String::from(""),
-                            right_ir_name: Some(ctx.func_use(name, Some(ctx.class_name.as_ref().unwrap().clone()))),
-                            lhs_ir_name: Some(String::from("%this")),
-                            lhs_ty: IRType::PTR(Box::from(IRType::class(ctx.class_name.as_ref().unwrap().as_str()))),
-                        }
-                    }
-                    _ => {
-                        IRInfo {
-                            ty: IRType::from(ty),
-                            left_ir_name: if *is_global {
-                                format!("@{}", *name)
-                            } else {
-                                ctx.local_var_use(name, *cnt)
-                            },
-                            right_ir_name: None,
-                            lhs_ir_name: None,
-                            lhs_ty: IRType::void(),
-                        }
-                    }
+                    "#FUNC#" => IRInfo {
+                        ty: IRType::from(ty),
+                        left_ir_name: String::from(""),
+                        right_ir_name: Some(ctx.func_use(name, None)),
+                        lhs_ir_name: None,
+                        lhs_ty: IRType::void(),
+                    },
+                    "#METHOD#" => IRInfo {
+                        ty: IRType::from(ty),
+                        left_ir_name: String::from(""),
+                        right_ir_name: Some(
+                            ctx.func_use(name, Some(ctx.class_name.as_ref().unwrap().clone())),
+                        ),
+                        lhs_ir_name: Some(String::from("%this")),
+                        lhs_ty: IRType::PTR(Box::from(IRType::class(
+                            ctx.class_name.as_ref().unwrap().as_str(),
+                        ))),
+                    },
+                    _ => IRInfo {
+                        ty: IRType::from(ty),
+                        left_ir_name: if *is_global {
+                            format!("@{}", *name)
+                        } else {
+                            ctx.local_var_use(name, *cnt)
+                        },
+                        right_ir_name: None,
+                        lhs_ir_name: None,
+                        lhs_ty: IRType::void(),
+                    },
                 }
             }
-        }
-        // _ => {
-        //     IRInfo::void()
-        // }
+        } // _ => {
+          //     IRInfo::void()
+          // }
     }
 }
-
 
 // 非常困难的一个部分，但是不要被困难吓倒，勇敢牛牛，不怕困难！
 // 有两种可能，第一种是Type [][] A = new Type [N1][N2]; 这需要从外向内申请空间，只用调用AllocArray来申请指针的空间，
 // 在最后一层申请类的空间，并把指针存回上一层
 // 第二种是Type [][][] A = new Type [N1][N2][]; 这前面部分同上，但遇到第一个[]时直接终止即可
 // 一个非常麻烦的问题是需要手写循环来申请各层空间
-fn alloc_arr_by_sizes(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ctx: &mut Context) -> IRInfo {
+fn alloc_arr_by_sizes(
+    name: &str,
+    sizes: &Vec<Option<ASTNode>>,
+    cur: i32,
+    ctx: &mut Context,
+) -> IRInfo {
     let expr = sizes[cur as usize].as_ref().unwrap();
 
     let expr_info = dfs(expr, ctx);
@@ -1410,9 +1446,7 @@ fn alloc_arr_by_sizes(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ctx: &
         Some(res_name.clone()),
         IRType::PTR(Box::from(IRType::void())),
         ctx.func_use("CrazyDave..AllocArray", None),
-        vec![
-            (IRType::i32(), expr_ir_name.clone())
-        ],
+        vec![(IRType::i32(), expr_ir_name.clone())],
     ));
     let res_info = IRInfo {
         ty: IRType::PTR(Box::from(IRType::void())),
@@ -1429,10 +1463,7 @@ fn alloc_arr_by_sizes(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ctx: &
         // 手写循环
         // 循环变量指针idx_name
         let idx_ptr_name = ctx.generate();
-        ctx.insert_statement(IRNode::Allocate(
-            idx_ptr_name.clone(),
-            IRType::i32(),
-        ));
+        ctx.insert_statement(IRNode::Allocate(idx_ptr_name.clone(), IRType::i32()));
         ctx.insert_statement(IRNode::Store(
             IRType::i32(),
             String::from("0"),
@@ -1485,13 +1516,13 @@ fn alloc_arr_by_sizes(name: &str, sizes: &Vec<Option<ASTNode>>, cur: i32, ctx: &
                 None,
                 IRType::void(),
                 ctx.func_use(name, Some(String::from(name))),
-                vec![
-                    (IRType::PTR(Box::from(IRType::class(name))), alloc_name.clone())
-                ],
+                vec![(
+                    IRType::PTR(Box::from(IRType::class(name))),
+                    alloc_name.clone(),
+                )],
             ));
             alloc_name
         };
-
 
         let ptr_name = ctx.generate();
         ctx.insert_statement(IRNode::GetElementPtr(
@@ -1535,9 +1566,7 @@ fn alloc_arr_by_const(node: &ASTNode, ctx: &mut Context) -> IRInfo {
                 Some(res_name.clone()),
                 IRType::PTR(Box::from(IRType::void())),
                 ctx.func_use("CrazyDave..AllocArray", None),
-                vec![
-                    (IRType::i32(), ch.len().to_string())
-                ],
+                vec![(IRType::i32(), ch.len().to_string())],
             ));
             for (i, node) in ch.iter().enumerate() {
                 let info = alloc_arr_by_const(node, ctx);
@@ -1563,8 +1592,6 @@ fn alloc_arr_by_const(node: &ASTNode, ctx: &mut Context) -> IRInfo {
                 lhs_ty: IRType::void(),
             }
         }
-        _ => {
-            dfs(node, ctx)
-        }
+        _ => dfs(node, ctx),
     }
 }

@@ -1,7 +1,7 @@
-use std::fmt::Display;
 use super::ast::Type;
+use std::fmt::Display;
 
-#[derive(Clone,Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum IRType {
     PTR(Box<IRType>),
     Var(String, Vec<i32>),
@@ -68,7 +68,7 @@ impl IRType {
                 let mut size: i32 = match name.as_str() {
                     "i32" => 4,
                     "i1" => 1,
-                    _ => 0
+                    _ => 0,
                 };
                 for s in sizes {
                     size *= s;
@@ -81,14 +81,12 @@ impl IRType {
     pub fn default_value(&self) -> Option<String> {
         match self {
             IRType::PTR(_) => Some("null".to_string()),
-            IRType::Var(name, _) => {
-                match name.as_str() {
-                    "i32" => Some("0".to_string()),
-                    "i1" => Some("0".to_string()),
-                    "void" => None,
-                    _ => unreachable!()
-                }
-            }
+            IRType::Var(name, _) => match name.as_str() {
+                "i32" => Some("0".to_string()),
+                "i1" => Some("0".to_string()),
+                "void" => None,
+                _ => unreachable!(),
+            },
         }
     }
     pub fn is_void(&self) -> bool {
@@ -114,12 +112,10 @@ impl IRType {
 
     pub fn is_string(&self) -> bool {
         match self {
-            IRType::PTR(ty) => {
-                match &**ty {
-                    IRType::Var(name, sh) => name == "string" && sh.is_empty(),
-                    _ => false,
-                }
-            }
+            IRType::PTR(ty) => match &**ty {
+                IRType::Var(name, sh) => name == "string" && sh.is_empty(),
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -133,7 +129,12 @@ impl Display for IRType {
                 if sizes.is_empty() {
                     write!(f, "{}", name)
                 } else {
-                    write!(f, "[{} x {}]", sizes[0], IRType::Var(name.clone(), sizes[1..].to_vec()))
+                    write!(
+                        f,
+                        "[{} x {}]",
+                        sizes[0],
+                        IRType::Var(name.clone(), sizes[1..].to_vec())
+                    )
                 }
             }
         }
@@ -144,9 +145,7 @@ pub fn escape_string(input: &str) -> (String, i32) {
     let c1 = input.matches("\\\"").count() as i32;
     let c2 = input.matches("\\n").count() as i32;
     let c3 = input.matches("\\\\").count() as i32;
-    let result = input
-        .replace("\\\"", "\\22")
-        .replace("\\n", "\\0A");
+    let result = input.replace("\\\"", "\\22").replace("\\n", "\\0A");
 
     (result, input.len() as i32 - c1 - c2 - c3)
 }

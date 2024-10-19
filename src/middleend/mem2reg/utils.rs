@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use bit_set::BitSet;
 use crate::middleend::ir::{IRNode, IRType};
+use bit_set::BitSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Clone)]
 pub struct BasicBlock {
@@ -35,7 +35,6 @@ impl BasicBlock {
         }
     }
 }
-
 
 pub struct CFG {
     pub nodes: Vec<BasicBlock>,
@@ -119,7 +118,12 @@ impl CFG {
                     continue;
                 }
                 visited.insert(cur);
-                queue.extend(self.nodes[cur].succ.iter().filter(|x| !visited.contains(*x)));
+                queue.extend(
+                    self.nodes[cur]
+                        .succ
+                        .iter()
+                        .filter(|x| !visited.contains(*x)),
+                );
                 let preds = &self.nodes[cur].pred;
                 let mut new_dom = BitSet::from_iter(0..self.nodes.len());
                 if preds.is_empty() {
@@ -145,7 +149,10 @@ impl CFG {
         // step 2: calculate the immediate dominator(IDom(n).i_dom contains n)
         for n in 0..self.nodes.len() {
             let n_dom_num = self.nodes[n].dom.len();
-            let i_dom_of_n = self.nodes[n].dom.iter().find(|&x| self.nodes[x].dom.len() == n_dom_num - 1);
+            let i_dom_of_n = self.nodes[n]
+                .dom
+                .iter()
+                .find(|&x| self.nodes[x].dom.len() == n_dom_num - 1);
             if let Some(i_dom_of_n) = i_dom_of_n {
                 self.nodes[i_dom_of_n].i_dom.insert(n);
             }
@@ -158,11 +165,15 @@ impl CFG {
             let preds = &self.nodes[n].pred;
             for m in preds.iter() {
                 update_names.union_with(
-                    &self.nodes[m].dom.difference(
-                        &self.nodes[n].dom.difference(
-                            &BitSet::from_iter([n])
-                        ).collect()
-                    ).collect()
+                    &self.nodes[m]
+                        .dom
+                        .difference(
+                            &self.nodes[n]
+                                .dom
+                                .difference(&BitSet::from_iter([n]))
+                                .collect(),
+                        )
+                        .collect(),
                 );
             }
             for x in update_names.iter() {
@@ -171,7 +182,6 @@ impl CFG {
         }
         // println!("calculate df ok");
     }
-
 
     pub fn put_phi(&mut self) {
         let mut allocated: Vec<(String, IRType)> = Vec::new();
@@ -196,13 +206,14 @@ impl CFG {
             while !phi_queue.is_empty() {
                 let cur = phi_queue.pop_front().unwrap();
                 let df = &self.nodes[cur].df;
-                let updated = df.iter().filter(
-                    |&x| !self.nodes[x].phi.contains_key(var)
-                ).collect::<Vec<_>>();
+                let updated = df
+                    .iter()
+                    .filter(|&x| !self.nodes[x].phi.contains_key(var))
+                    .collect::<Vec<_>>();
                 for n in updated.iter() {
-                    self.nodes[*n].phi.insert(
-                        var.clone(), IRNode::Phi(phi_name(), ty.clone(), vec![]),
-                    );
+                    self.nodes[*n]
+                        .phi
+                        .insert(var.clone(), IRNode::Phi(phi_name(), ty.clone(), vec![]));
                     self.nodes[*n].phi_names.push(var.clone());
                     phi_queue.push_back(*n);
                 }
@@ -233,7 +244,10 @@ impl CFG {
                         match inst {
                             IRNode::Load(res, _, ptr) => {
                                 if ptr == var {
-                                    rep.insert(res.clone(), stk.last().unwrap_or(&String::from("null")).clone());
+                                    rep.insert(
+                                        res.clone(),
+                                        stk.last().unwrap_or(&String::from("null")).clone(),
+                                    );
                                 }
                             }
                             IRNode::Store(_, val, ptr) => {
@@ -370,14 +384,19 @@ impl CFG {
         }
         // println!("put phi. rename ok");
         // supply phi
-        let names = self.nodes.iter().map(|bb| bb.name.clone()).collect::<Vec<_>>();
+        let names = self
+            .nodes
+            .iter()
+            .map(|bb| bb.name.clone())
+            .collect::<Vec<_>>();
         for bb in self.nodes.iter_mut() {
             let preds = bb.pred.clone();
             for (_, inst) in bb.phi.iter_mut() {
                 if let IRNode::Phi(_, ty, args) = inst {
-                    let old_args = args.iter().map(
-                        |(_, label)| self.rnk[label]
-                    ).collect::<BitSet>();
+                    let old_args = args
+                        .iter()
+                        .map(|(_, label)| self.rnk[label])
+                        .collect::<BitSet>();
                     for pred in preds.iter() {
                         if !old_args.contains(pred) {
                             match ty {
@@ -434,7 +453,7 @@ impl CFG {
                         *label2 = new_label.clone();
                     }
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
             // insert new_bb
             let new_bb = BasicBlock {
@@ -467,7 +486,7 @@ impl CFG {
                             }
                         }
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
         }
@@ -491,13 +510,12 @@ impl CFG {
                                     tmp_cnt += 1;
                                     mv_nodes.push((
                                         label.clone(),
-                                        IRNode::Move(
-                                            ty.clone(),
-                                            tmp_name.clone(),
-                                            val.clone(),
-                                        )
+                                        IRNode::Move(ty.clone(), tmp_name.clone(), val.clone()),
                                     ));
-                                    tmp_map.get_mut(val).unwrap().insert(label.clone(), tmp_name.clone());
+                                    tmp_map
+                                        .get_mut(val)
+                                        .unwrap()
+                                        .insert(label.clone(), tmp_name.clone());
                                 }
                                 *val = tmp_map[val][label].clone();
                             }
@@ -505,7 +523,7 @@ impl CFG {
                         phi_res_set.insert(res.clone());
                         tmp_map.insert(res.clone(), Box::new(HashMap::new()));
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
 
@@ -516,15 +534,11 @@ impl CFG {
                         for (val, label) in args {
                             mv_nodes.push((
                                 label.clone(),
-                                IRNode::Move(
-                                    ty.clone(),
-                                    res.clone(),
-                                    val.clone(),
-                                )
+                                IRNode::Move(ty.clone(), res.clone(), val.clone()),
                             ));
                         }
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
             for (label, mv) in &mv_nodes {
@@ -554,7 +568,9 @@ impl CFG {
                             res.push(inst.clone());
                         }
                     }
-                    _ => { res.push(inst.clone()); }
+                    _ => {
+                        res.push(inst.clone());
+                    }
                 }
             }
             for mv in bb.mv.iter() {

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use super::Type;
 use super::utils::ExprInfo;
+use super::Type;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub(crate) enum Member<'a> {
@@ -48,7 +48,10 @@ impl<'a> Scope<'a> {
 
         let mut str_hash_map = HashMap::new();
         str_hash_map.insert("length", Member::Func(Type::int(), vec![]));
-        str_hash_map.insert("substring", Member::Func(Type::string(), vec![Type::int(), Type::int()]));
+        str_hash_map.insert(
+            "substring",
+            Member::Func(Type::string(), vec![Type::int(), Type::int()]),
+        );
         str_hash_map.insert("parseInt", Member::Func(Type::int(), vec![]));
         str_hash_map.insert("ord", Member::Func(Type::int(), vec![Type::int()]));
 
@@ -83,7 +86,9 @@ impl<'a> Scope<'a> {
     }
 
     pub fn insert_func(&mut self, name: &'a str, ty: &Type<'a>, args: &Vec<Type<'a>>) {
-        self.top().map.insert(name, Member::Func(ty.clone(), args.clone()));
+        self.top()
+            .map
+            .insert(name, Member::Func(ty.clone(), args.clone()));
     }
 
     pub fn insert_class(&mut self, name: &'a str, members: HashMap<&'a str, Member<'a>>) {
@@ -94,33 +99,29 @@ impl<'a> Scope<'a> {
         for layer in self.layers.iter().rev() {
             if let Some(member) = layer.map.get(name) {
                 return match member {
-                    Member::Var(ty, idx, cnt) => {
-                        Some(ExprInfo {
-                            ty: ty.clone(),
-                            is_left: true,
-                            func: None,
-                            idx: *idx,
-                            cnt: *cnt,
-                            is_global: match layer.ty {
-                                ScopeType::Global => true,
-                                _ => false
-                            }
-                        })
-                    }
-                    Member::Func(ty, args) => {
-                        Some(ExprInfo {
-                            ty: match layer.ty {
-                                ScopeType::Class(_) => Type::method(),
-                                ScopeType::Global => Type::func(),
-                                _ => unreachable!()
-                            },
-                            is_left: false,
-                            func: Some((ty.clone(), args.clone())),
-                            idx: -1,
-                            cnt: -1,
-                            is_global: false
-                        })
-                    }
+                    Member::Var(ty, idx, cnt) => Some(ExprInfo {
+                        ty: ty.clone(),
+                        is_left: true,
+                        func: None,
+                        idx: *idx,
+                        cnt: *cnt,
+                        is_global: match layer.ty {
+                            ScopeType::Global => true,
+                            _ => false,
+                        },
+                    }),
+                    Member::Func(ty, args) => Some(ExprInfo {
+                        ty: match layer.ty {
+                            ScopeType::Class(_) => Type::method(),
+                            ScopeType::Global => Type::func(),
+                            _ => unreachable!(),
+                        },
+                        is_left: false,
+                        func: Some((ty.clone(), args.clone())),
+                        idx: -1,
+                        cnt: -1,
+                        is_global: false,
+                    }),
                 };
             }
         }
@@ -140,7 +141,7 @@ impl<'a> Scope<'a> {
         }
         match self.layers[1].ty {
             ScopeType::Class(name) => Some(name),
-            _ => None
+            _ => None,
         }
     }
 

@@ -1,9 +1,8 @@
-use std::str::FromStr;
-use pest::iterators::Pair;
-use super::ASTNode;
 use super::utils::Type;
+use super::ASTNode;
 use super::Rule;
-
+use pest::iterators::Pair;
+use std::str::FromStr;
 
 pub fn visit_file(pair: Pair<Rule>) -> ASTNode {
     let span = pair.as_span();
@@ -90,7 +89,7 @@ fn visit_block(pair: Pair<'_, Rule>) -> ASTNode {
             }
             ASTNode::Block(stmts, span)
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 fn visit_normal_block(pair: Pair<Rule>) -> ASTNode {
@@ -101,7 +100,9 @@ fn visit_normal_block(pair: Pair<Rule>) -> ASTNode {
         match pr.as_rule() {
             Rule::stmt => stmts.push(visit_stmt(pr)),
             Rule::normal_block => stmts.push(visit_normal_block(pr)),
-            _ => { unreachable!() }
+            _ => {
+                unreachable!()
+            }
         }
     }
     ASTNode::Block(stmts, span)
@@ -114,35 +115,38 @@ fn visit_stmt(pair: Pair<Rule>) -> ASTNode {
     let stmt_pair = inner_pairs.next().unwrap();
     match stmt_pair.as_rule() {
         Rule::simple_stmt => {
-            let Some(simple_inner) = stmt_pair.into_inner().next()
-            else { unreachable!() };
+            let Some(simple_inner) = stmt_pair.into_inner().next() else {
+                unreachable!()
+            };
             match simple_inner.as_rule() {
                 Rule::expr => visit_expr(simple_inner),
                 Rule::var_decl => visit_var_decl(simple_inner),
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
         Rule::flow_stmt => {
-            let Some(flow_inner) = stmt_pair.into_inner().next()
-            else { unreachable!() };
+            let Some(flow_inner) = stmt_pair.into_inner().next() else {
+                unreachable!()
+            };
             match flow_inner.as_rule() {
                 Rule::break_stmt => ASTNode::BreakStmt(span),
                 Rule::continue_stmt => ASTNode::ContinueStmt(span),
                 Rule::return_stmt => visit_return_stmt(flow_inner),
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
         Rule::compound_stmt => {
-            let Some(compound_inner) = stmt_pair.into_inner().next()
-            else { unreachable!() };
+            let Some(compound_inner) = stmt_pair.into_inner().next() else {
+                unreachable!()
+            };
             match compound_inner.as_rule() {
                 Rule::if_stmt => visit_if_stmt(compound_inner),
                 Rule::for_stmt => visit_for_stmt(compound_inner),
                 Rule::while_stmt => visit_while_stmt(compound_inner),
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 fn visit_expr(pair: Pair<Rule>) -> ASTNode {
@@ -176,7 +180,9 @@ fn visit_base_expr(pair: Pair<Rule>) -> ASTNode {
         }
         Rule::new_expr => visit_new_expr(first_pair),
         Rule::arr_const => visit_arr_const(first_pair),
-        _ => { unreachable!() }
+        _ => {
+            unreachable!()
+        }
     }
 }
 
@@ -197,7 +203,6 @@ fn visit_new_expr(pair: Pair<Rule>) -> ASTNode {
         Rule::array_init => {
             let mut init_inner_pairs = init_pair.into_inner();
 
-
             let my_type = init_inner_pairs.next().unwrap().as_str();
 
             let mut expr_arr = vec![];
@@ -207,12 +212,16 @@ fn visit_new_expr(pair: Pair<Rule>) -> ASTNode {
                     Rule::expr => expr_arr.push(Some(visit_expr(inner_pair))),
                     Rule::blank_bracket => expr_arr.push(None),
                     Rule::arr_const => array_const = Some(Box::new(visit_arr_const(inner_pair))),
-                    _ => { unreachable!() }
+                    _ => {
+                        unreachable!()
+                    }
                 }
             }
             ASTNode::ArrayInit(my_type, expr_arr, array_const, span)
         }
-        _ => { unreachable!() }
+        _ => {
+            unreachable!()
+        }
     }
 }
 fn visit_or_test(pair: Pair<Rule>) -> ASTNode {
@@ -223,22 +232,22 @@ fn visit_or_test(pair: Pair<Rule>) -> ASTNode {
         let rhs = visit_and_test(inner_pair);
         match &lhs {
             ASTNode::Bool(b1, _) => {
-                if *b1{
+                if *b1 {
                     return lhs;
                 }
                 lhs = rhs;
             }
             _ => {
-                match &rhs{
-                    ASTNode::Bool(b, _)=>{
-                        if *b{
+                match &rhs {
+                    ASTNode::Bool(b, _) => {
+                        if *b {
                             lhs = ASTNode::BinaryExpr("||", Box::new(lhs), Box::new(rhs), span);
                             return lhs;
-                        }else{
+                        } else {
                             continue;
                         }
                     }
-                    _=>{}
+                    _ => {}
                 }
                 lhs = ASTNode::BinaryExpr("||", Box::new(lhs), Box::new(rhs), span);
             }
@@ -254,22 +263,22 @@ fn visit_and_test(pair: Pair<Rule>) -> ASTNode {
         let rhs = visit_bit_or_test(inner_pair);
         match &lhs {
             ASTNode::Bool(b1, _) => {
-                if !*b1{
+                if !*b1 {
                     return lhs;
                 }
                 lhs = rhs;
             }
             _ => {
-                match &rhs{
-                    ASTNode::Bool(b, _)=>{
-                        if !*b{
+                match &rhs {
+                    ASTNode::Bool(b, _) => {
+                        if !*b {
                             lhs = ASTNode::BinaryExpr("&&", Box::new(lhs), Box::new(rhs), span);
                             return lhs;
-                        }else{
+                        } else {
                             continue;
                         }
                     }
-                    _=>{}
+                    _ => {}
                 }
                 lhs = ASTNode::BinaryExpr("&&", Box::new(lhs), Box::new(rhs), span);
             }
@@ -285,15 +294,13 @@ fn visit_bit_or_test(pair: Pair<Rule>) -> ASTNode {
     for inner_pair in inner_pairs {
         let rhs = visit_bit_xor_test(inner_pair);
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
-                        lhs = ASTNode::Int(i1 | i2, span);
-                        continue;
-                    }
-                    _ => {}
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    lhs = ASTNode::Int(i1 | i2, span);
+                    continue;
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr("|", Box::new(lhs), Box::new(rhs), span);
@@ -308,15 +315,13 @@ fn visit_bit_xor_test(pair: Pair<Rule>) -> ASTNode {
     for inner_pair in inner_pairs {
         let rhs = visit_bit_and_test(inner_pair);
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
-                        lhs = ASTNode::Int(i1 ^ i2, span);
-                        continue;
-                    }
-                    _ => {}
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    lhs = ASTNode::Int(i1 ^ i2, span);
+                    continue;
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr("^", Box::new(lhs), Box::new(rhs), span);
@@ -330,15 +335,13 @@ fn visit_bit_and_test(pair: Pair<Rule>) -> ASTNode {
     for inner_pair in inner_pairs {
         let rhs = visit_equal_test(inner_pair);
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
-                        lhs = ASTNode::Int(i1 & i2, span);
-                        continue;
-                    }
-                    _ => {}
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    lhs = ASTNode::Int(i1 & i2, span);
+                    continue;
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr("&", Box::new(lhs), Box::new(rhs), span);
@@ -353,47 +356,41 @@ fn visit_equal_test(pair: Pair<Rule>) -> ASTNode {
         let op = op_pair.as_str();
         let rhs = visit_comp_test(inner_pairs.next().unwrap());
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    if op == "==" {
+                        lhs = ASTNode::Bool(*i1 == *i2, span);
+                    } else {
+                        lhs = ASTNode::Bool(*i1 != *i2, span);
+                    }
+                    continue;
+                }
+                _ => {}
+            },
+            ASTNode::Bool(b1, _) => match &rhs {
+                ASTNode::Bool(b2, _) => {
+                    if op == "==" {
+                        lhs = ASTNode::Bool(*b1 == *b2, span);
+                    } else {
+                        lhs = ASTNode::Bool(*b1 != *b2, span);
+                    }
+                    continue;
+                }
+                _ => {}
+            },
+            ASTNode::Ident(n1, _, _, _, _, _) => match &rhs {
+                ASTNode::Ident(n2, _, _, _, _, _) => {
+                    if *n1 == *n2 {
                         if op == "==" {
-                            lhs = ASTNode::Bool(*i1 == *i2, span);
+                            lhs = ASTNode::Bool(true, span);
                         } else {
-                            lhs = ASTNode::Bool(*i1 != *i2, span);
+                            lhs = ASTNode::Bool(false, span);
                         }
                         continue;
                     }
-                    _ => {}
                 }
-            }
-            ASTNode::Bool(b1, _) => {
-                match &rhs {
-                    ASTNode::Bool(b2, _) => {
-                        if op == "==" {
-                            lhs = ASTNode::Bool(*b1 == *b2, span);
-                        } else {
-                            lhs = ASTNode::Bool(*b1 != *b2, span);
-                        }
-                        continue;
-                    }
-                    _ => {}
-                }
-            }
-            ASTNode::Ident(n1,_,_,_,_,_)=>{
-                match &rhs{
-                    ASTNode::Ident(n2,_,_,_,_,_)=>{
-                        if *n1 == *n2{
-                            if op == "=="{
-                                lhs = ASTNode::Bool(true, span);
-                            }else{
-                                lhs = ASTNode::Bool(false, span);
-                            }
-                            continue;
-                        }
-                    }
-                    _=>{}
-                }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr(op, Box::new(lhs), Box::new(rhs), span);
@@ -408,38 +405,34 @@ fn visit_comp_test(pair: Pair<Rule>) -> ASTNode {
         let op = op_pair.as_str();
         let rhs = visit_shift_expr(inner_pairs.next().unwrap());
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    match op {
+                        "<" => lhs = ASTNode::Bool(*i1 < *i2, span),
+                        "<=" => lhs = ASTNode::Bool(*i1 <= *i2, span),
+                        ">" => lhs = ASTNode::Bool(*i1 > *i2, span),
+                        ">=" => lhs = ASTNode::Bool(*i1 >= *i2, span),
+                        _ => unreachable!(),
+                    }
+                    continue;
+                }
+                _ => {}
+            },
+            ASTNode::Ident(n1, _, _, _, _, _) => match &rhs {
+                ASTNode::Ident(n2, _, _, _, _, _) => {
+                    if *n1 == *n2 {
                         match op {
-                            "<" => lhs = ASTNode::Bool(*i1 < *i2, span),
-                            "<=" => lhs = ASTNode::Bool(*i1 <= *i2, span),
-                            ">" => lhs = ASTNode::Bool(*i1 > *i2, span),
-                            ">=" => lhs = ASTNode::Bool(*i1 >= *i2, span),
-                            _ => unreachable!()
+                            "<=" => lhs = ASTNode::Bool(true, span),
+                            ">=" => lhs = ASTNode::Bool(true, span),
+                            "<" => lhs = ASTNode::Bool(false, span),
+                            ">" => lhs = ASTNode::Bool(false, span),
+                            _ => unreachable!(),
                         }
                         continue;
                     }
-                    _ => {}
                 }
-            }
-            ASTNode::Ident(n1,_,_,_,_,_)=>{
-                match &rhs{
-                    ASTNode::Ident(n2,_,_,_,_,_)=>{
-                        if *n1 == *n2{
-                            match op{
-                                "<=" => lhs = ASTNode::Bool(true, span),
-                                ">=" => lhs = ASTNode::Bool(true, span),
-                                "<" => lhs = ASTNode::Bool(false, span),
-                                ">" => lhs = ASTNode::Bool(false, span),
-                                _=> unreachable!()
-                            }
-                            continue;
-                        }
-                    }
-                    _=>{}
-                }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr(op, Box::new(lhs), Box::new(rhs), span);
@@ -454,19 +447,17 @@ fn visit_shift_expr(pair: Pair<Rule>) -> ASTNode {
         let op = op_pair.as_str();
         let rhs = visit_add_sub_expr(inner_pairs.next().unwrap());
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
-                        match op {
-                            "<<" => lhs = ASTNode::Int(*i1 << *i2, span),
-                            ">>" => lhs = ASTNode::Int(*i1 >> *i2, span),
-                            _ => unreachable!()
-                        }
-                        continue;
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    match op {
+                        "<<" => lhs = ASTNode::Int(*i1 << *i2, span),
+                        ">>" => lhs = ASTNode::Int(*i1 >> *i2, span),
+                        _ => unreachable!(),
                     }
-                    _ => {}
+                    continue;
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr(op, Box::new(lhs), Box::new(rhs), span);
@@ -482,19 +473,17 @@ fn visit_add_sub_expr(pair: Pair<Rule>) -> ASTNode {
         let op = op_pair.as_str();
         let rhs = visit_mul_div_mod_expr(inner_pairs.next().unwrap());
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
-                        match op {
-                            "+" => lhs = ASTNode::Int(*i1 + *i2, span),
-                            "-" => lhs = ASTNode::Int(*i1 - *i2, span),
-                            _ => unreachable!()
-                        }
-                        continue;
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    match op {
+                        "+" => lhs = ASTNode::Int(*i1 + *i2, span),
+                        "-" => lhs = ASTNode::Int(*i1 - *i2, span),
+                        _ => unreachable!(),
                     }
-                    _ => {}
+                    continue;
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr(op, Box::new(lhs), Box::new(rhs), span);
@@ -509,24 +498,22 @@ fn visit_mul_div_mod_expr(pair: Pair<Rule>) -> ASTNode {
         let op = op_pair.as_str();
         let rhs = visit_unitary_expr(inner_pairs.next().unwrap());
         match &lhs {
-            ASTNode::Int(i1, _) => {
-                match &rhs {
-                    ASTNode::Int(i2, _) => {
-                        match op {
-                            "*" => lhs = ASTNode::Int(*i1 * *i2, span),
-                            "/" => {
-                                if *i2 != 0 {
-                                    lhs = ASTNode::Int(*i1 / *i2, span);
-                                }
+            ASTNode::Int(i1, _) => match &rhs {
+                ASTNode::Int(i2, _) => {
+                    match op {
+                        "*" => lhs = ASTNode::Int(*i1 * *i2, span),
+                        "/" => {
+                            if *i2 != 0 {
+                                lhs = ASTNode::Int(*i1 / *i2, span);
                             }
-                            "%" => lhs = ASTNode::Int(*i1 % *i2, span),
-                            _ => unreachable!()
                         }
-                        continue;
+                        "%" => lhs = ASTNode::Int(*i1 % *i2, span),
+                        _ => unreachable!(),
                     }
-                    _ => {}
+                    continue;
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
         lhs = ASTNode::BinaryExpr(op, Box::new(lhs), Box::new(rhs), span);
@@ -542,28 +529,24 @@ fn visit_unitary_expr(pair: Pair<Rule>) -> ASTNode {
             let op = first_pair.as_str();
             let rhs = visit_unitary_expr(inner_pairs.next().unwrap());
             match &rhs {
-                ASTNode::Int(i, _) => {
-                    match op {
-                        "++" => return ASTNode::Int(*i + 1, span),
-                        "--" => return ASTNode::Int(*i - 1, span),
-                        "~" => return ASTNode::Int(!*i, span),
-                        "+" => return ASTNode::Int(*i, span),
-                        "-" => return ASTNode::Int(-*i, span),
-                        _ => {}
-                    }
-                }
-                ASTNode::Bool(b, _) => {
-                    match op {
-                        "!" => return ASTNode::Bool(!*b, span),
-                        _ => {}
-                    }
-                }
+                ASTNode::Int(i, _) => match op {
+                    "++" => return ASTNode::Int(*i + 1, span),
+                    "--" => return ASTNode::Int(*i - 1, span),
+                    "~" => return ASTNode::Int(!*i, span),
+                    "+" => return ASTNode::Int(*i, span),
+                    "-" => return ASTNode::Int(-*i, span),
+                    _ => {}
+                },
+                ASTNode::Bool(b, _) => match op {
+                    "!" => return ASTNode::Bool(!*b, span),
+                    _ => {}
+                },
                 _ => {}
             }
             ASTNode::UnitaryExpr(op, Box::new(rhs), span)
         }
         Rule::suffix_expr => visit_suffix_expr(first_pair),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 fn visit_suffix_expr(pair: Pair<Rule>) -> ASTNode {
@@ -579,7 +562,7 @@ fn visit_suffix_expr(pair: Pair<Rule>) -> ASTNode {
                         match op {
                             "++" => lhs = ASTNode::Int(*i + 1, span),
                             "--" => lhs = ASTNode::Int(*i - 1, span),
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         }
                         continue;
                     }
@@ -589,11 +572,22 @@ fn visit_suffix_expr(pair: Pair<Rule>) -> ASTNode {
             }
             Rule::array_access => {
                 let access_inner_pair = inner_pair.into_inner().next().unwrap();
-                lhs = ASTNode::ArrayAccess(Box::new(lhs), Box::new(visit_expr(access_inner_pair)), span, Type::void());
+                lhs = ASTNode::ArrayAccess(
+                    Box::new(lhs),
+                    Box::new(visit_expr(access_inner_pair)),
+                    span,
+                    Type::void(),
+                );
             }
             Rule::member_access => {
                 let access_inner_pair = inner_pair.into_inner().next().unwrap();
-                lhs = ASTNode::MemberAccess(Box::new(lhs), access_inner_pair.as_str(), span, -1, Type::void());
+                lhs = ASTNode::MemberAccess(
+                    Box::new(lhs),
+                    access_inner_pair.as_str(),
+                    span,
+                    -1,
+                    Type::void(),
+                );
             }
             Rule::func_call => {
                 let params_inner_pair = inner_pair.into_inner().next().unwrap();
@@ -603,7 +597,7 @@ fn visit_suffix_expr(pair: Pair<Rule>) -> ASTNode {
                 }
                 lhs = ASTNode::FuncCall(Box::new(lhs), params, span, Type::void());
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
     lhs
@@ -618,7 +612,7 @@ fn visit_atom(pair: Pair<Rule>) -> ASTNode {
         Rule::fmt_string => visit_fmt_string(inner_pair),
         Rule::ident => ASTNode::Ident(inner_pair.as_str(), span, -1, Type::void(), -1, false),
         Rule::expr => visit_expr(inner_pair),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 fn visit_fmt_string(pair: Pair<Rule>) -> ASTNode {
@@ -628,7 +622,9 @@ fn visit_fmt_string(pair: Pair<Rule>) -> ASTNode {
         match inner_pair.as_rule() {
             Rule::fmt_char => res.push(visit_str(inner_pair)),
             Rule::inner_expr => res.push(visit_expr(inner_pair.into_inner().next().unwrap())),
-            _ => { unreachable!() }
+            _ => {
+                unreachable!()
+            }
         }
     }
     ASTNode::FmtStr(res, span)
@@ -651,7 +647,9 @@ fn visit_if_stmt(pair: Pair<Rule>) -> ASTNode {
 
     let else_block = if let Some(else_pair) = inner_pairs.next() {
         Some(Box::new(visit_block(else_pair)))
-    } else { None };
+    } else {
+        None
+    };
 
     ASTNode::IfStmt(condition, if_block, else_block, span)
 }
@@ -665,17 +663,23 @@ fn visit_for_stmt(pair: Pair<Rule>) -> ASTNode {
             Rule::var_decl => Some(Box::new(visit_var_decl(init_pair))),
             _ => unreachable!(),
         }
-    } else { None };
+    } else {
+        None
+    };
 
     let mut for_cond_pairs = inner_pairs.next().unwrap().into_inner();
     let cond_expr = if let Some(cond_pair) = for_cond_pairs.next() {
         Some(Box::new(visit_expr(cond_pair)))
-    } else { None };
+    } else {
+        None
+    };
 
     let mut for_update_pairs = inner_pairs.next().unwrap().into_inner();
     let update_expr = if let Some(update_pair) = for_update_pairs.next() {
         Some(Box::new(visit_expr(update_pair)))
-    } else { None };
+    } else {
+        None
+    };
 
     let block_pair = inner_pairs.next().unwrap();
 
@@ -696,7 +700,9 @@ fn visit_while_stmt(pair: Pair<Rule>) -> ASTNode {
     } else {
         None
     };
-    let block_pair = inner_pairs.next().expect("Expected block for 'while' statement");
+    let block_pair = inner_pairs
+        .next()
+        .expect("Expected block for 'while' statement");
     ASTNode::WhileStmt(cond_expr, Box::new(visit_block(block_pair)), span)
 }
 fn visit_int(pair: Pair<Rule>) -> i32 {
@@ -726,12 +732,13 @@ fn visit_arr_const(pair: Pair<Rule>) -> ASTNode {
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
             Rule::CONST => res.push(visit_const(inner_pair)),
-            _ => { unreachable!() }
+            _ => {
+                unreachable!()
+            }
         }
     }
     ASTNode::ArrConst(res, span)
 }
-
 
 fn visit_const(pair: Pair<Rule>) -> ASTNode {
     let span = pair.as_span();
