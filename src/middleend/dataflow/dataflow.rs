@@ -109,6 +109,11 @@ impl DataFlow {
             changed |= self.dead_code_elimination();
             changed |= self.fix_table();
         }
+        changed = true;
+        while changed{
+            changed = false;
+            changed |= self.trail_optimization();
+        }
     }
     pub fn get_ir(&self) -> Vec<IRNode> {
         let mut res = Vec::new();
@@ -252,6 +257,39 @@ impl DataFlow {
                     }
                 }
             }
+        }
+        changed
+    }
+    fn trail_optimization(&mut self) -> bool{
+        let mut changed = false;
+        let mut to_remove = BitSet::new();
+        for bb_op in self.cfg_nodes.iter(){
+            if let Some(bb) = bb_op{
+                if bb.succ.len() == 1{
+                    let succ = bb.succ.iter().next().unwrap();
+                    if self.cfg_nodes[succ].as_ref().unwrap().pred.len() == 1{
+                        to_remove.insert(succ);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        for n in to_remove.iter(){
+            let ch = self.cfg_nodes[n].as_ref().unwrap().ch.clone();
+            let pred = self.cfg_nodes[n].as_ref().unwrap().pred.iter().next().unwrap();
+            let succ = self.cfg_nodes[n].as_ref().unwrap().succ.clone();
+            let pred_bb = self.cfg_nodes[pred].as_mut().unwrap();
+            pred_bb.ch.pop();
+            pred_bb.ch.extend(ch.into_iter().skip(1));
+
+            // 维护pred的succ，succ的pred
+            pred_bb.succ.remove(n);
+            pred_bb.succ.extend(succ.iter());
+            for succ in succ.iter(){
+                self.cfg_nodes[succ].as_mut().unwrap().pred.remove(n);
+                self.cfg_nodes[succ].as_mut().unwrap().pred.insert(pred);
+            }
+            self.cfg_nodes[n] = None;
         }
         changed
     }
