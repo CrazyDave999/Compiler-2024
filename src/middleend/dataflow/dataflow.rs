@@ -537,6 +537,7 @@ impl DataFlow {
                 }
             }
         }
+
         for i in live_bbs.iter() {
             if i == enter_rnk || i == exit_rnk {
                 continue;
@@ -547,22 +548,13 @@ impl DataFlow {
             let l = self.cfg_nodes[i].as_ref().unwrap().ch.len();
             self.live.insert((i, l - 1));
         }
-        for (i, bb) in self.cfg_nodes.iter_mut().enumerate() {
-            if !live_bbs.contains(i) && i != 0 {
-                *bb = None;
-                continue;
-            }
-            if let Some(bb) = bb {
-                for (j, inst) in bb.ch.iter_mut().enumerate() {
-                    if !self.live.contains(&(i, j)) {
-                        *inst = None;
-                    }
-                }
-            }
-        }
+
         // 修正所有基本块末尾的branch
         let mut need_fix = Vec::new();
         for (i, bb) in self.cfg_nodes.iter().enumerate() {
+            if !live_bbs.contains(i) {
+                continue;
+            }
             if let Some(bb) = bb {
                 match bb.ch.last().unwrap() {
                     Some(IRNode::Br(label)) => {
@@ -576,9 +568,19 @@ impl DataFlow {
             }
         }
         for i in need_fix.iter() {
-            let mut j = *i + 1;
+            let mut j = self.cfg_nodes[*i].as_ref().unwrap().succ.iter().next().unwrap();
+            if self.cfg_nodes[j].is_none(){
+                continue;
+            }
             while !live_bbs.contains(j) {
-                j += 1;
+                if let Some(bb) = self.cfg_nodes[j].as_ref() {
+                    for succ in bb.succ.iter() {
+                        j = succ;
+                        if live_bbs.contains(succ) {
+                            break;
+                        }
+                    }
+                }
             }
             let name = self.cfg_nodes[j].as_ref().unwrap().name.clone();
             match self.cfg_nodes[*i].as_mut().unwrap().ch.last_mut().unwrap() {
@@ -588,6 +590,21 @@ impl DataFlow {
                 _ => {}
             }
         }
+
+        for (i, bb) in self.cfg_nodes.iter_mut().enumerate() {
+            if !live_bbs.contains(i) && i != 0 {
+                *bb = None;
+                continue;
+            }
+            if let Some(bb) = bb {
+                for (j, inst) in bb.ch.iter_mut().enumerate() {
+                    if !self.live.contains(&(i, j)) {
+                        *inst = None;
+                    }
+                }
+            }
+        }
+
 
         self.cfg_nodes.pop();
         self.cfg_nodes.pop();
