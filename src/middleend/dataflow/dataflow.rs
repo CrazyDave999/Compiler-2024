@@ -572,7 +572,11 @@ impl DataFlow {
             if self.cfg_nodes[j].is_none(){
                 continue;
             }
+            let mut visited = BitSet::new();
             while !live_bbs.contains(j) {
+                if visited.contains(j) {
+                    break;
+                }
                 if let Some(bb) = self.cfg_nodes[j].as_ref() {
                     for succ in bb.succ.iter() {
                         j = succ;
@@ -581,6 +585,7 @@ impl DataFlow {
                         }
                     }
                 }
+                visited.insert(j);
             }
             let name = self.cfg_nodes[j].as_ref().unwrap().name.clone();
             match self.cfg_nodes[*i].as_mut().unwrap().ch.last_mut().unwrap() {
