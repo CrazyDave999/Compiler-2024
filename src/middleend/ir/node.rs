@@ -42,6 +42,12 @@ impl IRNode {
             _ => false,
         }
     }
+    pub fn is_effect(&self) -> bool {
+        match self{
+            IRNode::Store(_,_,_) | IRNode::Call(_,_,_,_) | IRNode::Ret(_,_) => true,
+            _ => false,
+        }
+    }
     pub fn alloc_get_use_mut(&mut self) -> Vec<&mut String> {
         match self {
             IRNode::Binary(_, _, _, lhs, rhs) => {

@@ -136,11 +136,17 @@ impl Allocator {
         for (i, bb) in res.nodes.iter().enumerate() {
             match &bb.ch.last().unwrap().ir_ {
                 IRNode::Br(label) => {
-                    cfg_edges.push((i, label_rnk[label]));
+                    if let Some(&l) = label_rnk.get(label) {
+                        cfg_edges.push((i, l));
+                    }
                 }
                 IRNode::BrCond(_, label1, label2) => {
-                    cfg_edges.push((i, label_rnk[label1]));
-                    cfg_edges.push((i, label_rnk[label2]));
+                    if let Some(&l1) = label_rnk.get(label1) {
+                        cfg_edges.push((i, l1));
+                    }
+                    if let Some(&l2) = label_rnk.get(label2) {
+                        cfg_edges.push((i, l2));
+                    }
                 }
                 _ => {}
             }

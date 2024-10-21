@@ -221,7 +221,7 @@ pub fn pass(ir: Vec<IRNode>) -> Vec<IRNode> {
     // println!("check ring");
 
     let mut inline_func = HashSet::new();
-    let max_size: usize = 200;
+    let max_size: usize = 2000;
     let mut size = HashMap::new();
     stk.clear();
     for func in funcs.iter() {
