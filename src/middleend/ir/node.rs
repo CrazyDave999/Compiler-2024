@@ -43,8 +43,20 @@ impl IRNode {
         }
     }
     pub fn is_effect(&self) -> bool {
-        match self{
-            IRNode::Store(_,_,_) | IRNode::Call(_,_,_,_) | IRNode::Ret(_,_) => true,
+        match self {
+            IRNode::Store(_, _, _) | IRNode::Call(_, _, _, _) | IRNode::Ret(_, _) => true,
+            _ => false,
+        }
+    }
+    pub fn is_pinned(&self) -> bool {
+        match self {
+            IRNode::Store(_, _, _)
+            | IRNode::Call(_, _, _, _)
+            | IRNode::Ret(_, _)
+            | IRNode::BrCond(_, _, _)
+            | IRNode::Br(_)
+            | IRNode::Label(_)
+            | IRNode::Move(_, _, _) => true,
             _ => false,
         }
     }

@@ -122,7 +122,7 @@ impl CFG {
                     self.nodes[cur]
                         .succ
                         .iter()
-                        .filter(|x| !visited.contains(*x)),
+                        .filter(|x| !visited.contains(*x))
                 );
                 let preds = &self.nodes[cur].pred;
                 let mut new_dom = BitSet::from_iter(0..self.nodes.len());

@@ -1,6 +1,7 @@
 pub mod ir;
 
-pub mod dataflow;
+pub mod gvn_gcm;
+pub mod ccp_adce;
 pub mod inline;
 pub mod mem2reg;
 
