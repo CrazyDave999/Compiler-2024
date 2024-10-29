@@ -108,9 +108,11 @@ impl DataFlow {
             }
         }
         for (u, v) in edges.iter() {
-            let (u, v) = (df.cfg_rnk[u], df.cfg_rnk[v]);
-            df.cfg_nodes[u].as_mut().unwrap().succ.insert(v);
-            df.cfg_nodes[v].as_mut().unwrap().pred.insert(u);
+            if let (Some(u), Some(v)) = (df.cfg_rnk.get(u), df.cfg_rnk.get(v)) {
+                let (u, v) = (*u, *v);
+                df.cfg_nodes[u].as_mut().unwrap().succ.insert(v);
+                df.cfg_nodes[v].as_mut().unwrap().pred.insert(u);
+            }
         }
         df.work_list = df.def_pos.keys().cloned().collect();
         df
@@ -558,9 +560,10 @@ impl DataFlow {
             if let Some(bb) = bb {
                 match bb.ch.last().unwrap() {
                     Some(IRNode::Br(label)) => {
-                        let j = self.cfg_rnk[label];
-                        if !live_bbs.contains(j) {
-                            need_fix.push(i);
+                        if let Some(j) = self.cfg_rnk.get(label) {
+                            if !live_bbs.contains(*j) {
+                                need_fix.push(i);
+                            }
                         }
                     }
                     _ => {}
