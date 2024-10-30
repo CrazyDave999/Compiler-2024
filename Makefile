@@ -3,7 +3,7 @@ all: build
 PROJECT_NAME = compiler-2024
 
 build:
-	cargo build
+	cargo build --release
 
 run:
 	ulimit -s 131072; \
