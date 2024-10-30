@@ -108,11 +108,9 @@ impl DataFlow {
             }
         }
         for (u, v) in edges.iter() {
-            if let (Some(u), Some(v)) = (df.cfg_rnk.get(u), df.cfg_rnk.get(v)) {
-                let (u, v) = (*u, *v);
-                df.cfg_nodes[u].as_mut().unwrap().succ.insert(v);
-                df.cfg_nodes[v].as_mut().unwrap().pred.insert(u);
-            }
+            let (u, v) = (df.cfg_rnk[u], df.cfg_rnk[v]);
+            df.cfg_nodes[u].as_mut().unwrap().succ.insert(v);
+            df.cfg_nodes[v].as_mut().unwrap().pred.insert(u);
         }
         df.work_list = df.def_pos.keys().cloned().collect();
         df

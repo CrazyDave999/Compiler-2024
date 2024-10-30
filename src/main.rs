@@ -267,8 +267,8 @@ fn asm_oj() -> Result<(), Box<dyn std::error::Error>> {
                     let mem2reg_nodes = mem2reg::pass(inline_nodes);
                     let ccp_adce_nodes = ccp_adce::pass(mem2reg_nodes);
                     // let ccp_adce_nodes_1 = ccp_adce::pass(ccp_adce_nodes);
-                    let gvn_gcm_nodes = gvn_gcm::pass(ccp_adce_nodes);
-                    let alloc = regalloc::pass(gvn_gcm_nodes);
+                    // let gvn_gcm_nodes = gvn_gcm::pass(ccp_adce_nodes);
+                    let alloc = regalloc::pass(ccp_adce_nodes);
                     match codegen::build_asm(alloc) {
                         Ok(asm_nodes) => {
                             let builtin = fs::read_to_string("builtin1.s").unwrap();
